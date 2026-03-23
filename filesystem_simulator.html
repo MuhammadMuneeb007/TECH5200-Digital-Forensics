@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>File System Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f1eb;
+  --surface:#ffffff;
+  --surface2:#f8f6f1;
+  --border:#ddd9d0;
+  --border2:#ccc8be;
+  --text:#1c1a16;
+  --muted:#7a7569;
+  --accent:#1d4ed8;
+  --accent-light:#dbeafe;
+  --green:#15803d;
+  --green-light:#dcfce7;
+  --red:#b91c1c;
+  --red-light:#fee2e2;
+  --amber:#92400e;
+  --amber-light:#fef3c7;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'IBM Plex Sans',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.5;min-height:100vh;}
+/* Layout */
+.app{display:grid;grid-template-rows:auto auto 1fr auto;grid-template-columns:1fr;min-height:100vh;max-width:1400px;margin:0 auto;padding:16px;gap:12px;}
+.header{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.header-left{display:flex;align-items:center;gap:14px;}
+.logo{font-family:var(--mono);font-size:15px;font-weight:600;letter-spacing:-0.5px;}
+.logo span{color:var(--accent);}
+.fs-tabs{display:flex;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px;}
+.fs-tab{font-family:var(--mono);font-size:11px;font-weight:500;padding:4px 12px;border-radius:4px;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:all .15s;}
+.fs-tab.active{background:var(--surface);color:var(--accent);border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.disk-stats{display:flex;gap:20px;font-family:var(--mono);font-size:11px;}
+.stat{display:flex;flex-direction:column;align-items:flex-end;}
+.stat-label{color:var(--muted);font-size:10px;}
+.stat-val{font-weight:600;}
+.stat-val.used{color:var(--accent);}
+.stat-val.free{color:var(--green);}
+/* Main grid */
+.main{display:grid;grid-template-columns:300px 1fr 300px;gap:12px;align-items:start;}
+/* Panels */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.panel-header{background:var(--surface2);border-bottom:1px solid var(--border);padding:9px 14px;display:flex;align-items:center;justify-content:space-between;}
+.panel-title{font-family:var(--mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);}
+.panel-body{padding:14px;}
+/* File creation form */
+.form-group{margin-bottom:12px;}
+.form-label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:7px 10px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;transition:border .15s;}
+.form-input:focus{border-color:var(--accent);}
+.form-textarea{resize:vertical;min-height:90px;font-family:var(--mono);}
+.form-select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:7px 10px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;appearance:none;cursor:pointer;}
+.btn{width:100%;padding:8px 14px;border-radius:5px;border:none;font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;letter-spacing:.3px;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:#1e40af;}
+.btn-danger{background:var(--red-light);color:var(--red);border:1px solid #fca5a5;margin-top:6px;}
+.btn-danger:hover{background:#fecaca;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+/* File list */
+.file-list{display:flex;flex-direction:column;gap:4px;max-height:280px;overflow-y:auto;}
+.file-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:5px;cursor:pointer;border:1px solid transparent;transition:all .12s;}
+.file-item:hover{background:var(--surface2);border-color:var(--border);}
+.file-item.selected{background:var(--accent-light);border-color:#93c5fd;}
+.file-icon{width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:var(--mono);}
+.file-info{flex:1;min-width:0;}
+.file-name{font-family:var(--mono);font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.file-size{font-size:10px;color:var(--muted);font-family:var(--mono);}
+.file-del{width:18px;height:18px;border-radius:3px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .1s;}
+.file-item:hover .file-del{opacity:1;}
+.file-del:hover{background:var(--red-light);color:var(--red);}
+/* Disk grid */
+.disk-wrap{padding:14px;}
+.disk-label-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.disk-legend{display:flex;gap:10px;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+.legend-dot{width:10px;height:10px;border-radius:2px;}
+.disk-grid{display:grid;grid-template-columns:repeat(16,1fr);gap:3px;margin-bottom:10px;}
+.cluster{width:100%;aspect-ratio:1;border-radius:3px;cursor:pointer;transition:transform .1s,box-shadow .1s;position:relative;border:1px solid transparent;}
+.cluster:hover{transform:scale(1.15);box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:10;}
+.cluster.free{background:#ede9e0;border-color:#ddd8ce;}
+.cluster.system{background:#cbd5e1;border-color:#94a3b8;}
+.cluster.mft{background:#fde68a;border-color:#f59e0b;}
+.cluster.journal{background:#fed7aa;border-color:#f97316;}
+.cluster.selected-cluster{box-shadow:0 0 0 2px var(--accent),0 2px 8px rgba(0,0,0,.15);transform:scale(1.12);z-index:10;}
+/* Cluster info tooltip */
+.cluster-tooltip{position:fixed;background:var(--text);color:#fff;font-family:var(--mono);font-size:11px;padding:6px 10px;border-radius:5px;pointer-events:none;z-index:1000;max-width:200px;line-height:1.6;display:none;}
+/* MFT panel */
+.mft-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px;}
+.mft-table th{background:var(--surface2);border-bottom:2px solid var(--border);padding:7px 8px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);white-space:nowrap;}
+.mft-table td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top;word-break:break-all;}
+.mft-table tr:last-child td{border-bottom:none;}
+.mft-table tr.sys-row td{color:var(--muted);font-style:italic;}
+.mft-table tr.file-row{cursor:pointer;transition:background .1s;}
+.mft-table tr.file-row:hover td{background:var(--surface2);}
+.mft-table tr.file-row.selected td{background:var(--accent-light);}
+.cluster-chain{display:flex;flex-wrap:wrap;gap:2px;}
+.chain-badge{background:var(--accent-light);color:var(--accent);border:1px solid #93c5fd;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;}
+.chain-badge.sys{background:#f1f5f9;color:#64748b;border-color:#cbd5e1;}
+.chain-badge.journal{background:#fff7ed;color:#c2410c;border-color:#fed7aa;}
+/* Metadata panel */
+.meta-section{margin-bottom:16px;}
+.meta-section:last-child{margin-bottom:0;}
+.meta-heading{font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+.meta-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--surface2);}
+.meta-key{color:var(--muted);font-family:var(--mono);font-size:11px;}
+.meta-val{font-family:var(--mono);font-size:11px;font-weight:500;text-align:right;max-width:55%;word-break:break-all;}
+.meta-val.accent{color:var(--accent);}
+.meta-val.green{color:var(--green);}
+.meta-val.red{color:var(--red);}
+.hex-view{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:10px;font-family:var(--mono);font-size:10px;line-height:1.7;overflow-x:auto;white-space:pre;}
+.hex-addr{color:var(--muted);}
+.hex-byte{color:#0369a1;}
+.hex-ascii{color:var(--green);}
+/* Empty state */
+.empty-state{text-align:center;padding:32px 16px;color:var(--muted);}
+.empty-icon{font-size:32px;margin-bottom:8px;opacity:.3;}
+.empty-text{font-size:12px;font-family:var(--mono);}
+/* Bottom info bar */
+.infobar{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 20px;display:flex;gap:24px;flex-wrap:wrap;}
+.info-item{display:flex;gap:6px;align-items:center;font-size:11px;font-family:var(--mono);}
+.info-key{color:var(--muted);}
+.info-val{font-weight:600;}
+/* File type colors */
+.fc-txt{background:#dbeafe;color:#1e40af;}
+.fc-img{background:#fce7f3;color:#9d174d;}
+.fc-vid{background:#f3e8ff;color:#6b21a8;}
+.fc-doc{background:#dcfce7;color:#15803d;}
+.fc-zip{background:#fef3c7;color:#92400e;}
+.fc-src{background:#f0fdf4;color:#166534;}
+.fc-oth{background:#f1f5f9;color:#475569;}
+.tag{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;font-family:var(--mono);}
+.scrollable{max-height:400px;overflow-y:auto;}
+/* Animations */
+@keyframes pop{0%{transform:scale(1.4)}100%{transform:scale(1)}}
+.cluster-pop{animation:pop .25s ease-out;}
+@keyframes slide-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.slide-in{animation:slide-in .2s ease-out;}
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo">fs<span>.</span>sim</div>
+    <div class="fs-tabs" id="fsTabs">
+      <button class="fs-tab active" data-fs="NTFS" onclick="switchFS('NTFS')">NTFS</button>
+      <button class="fs-tab" data-fs="ext4" onclick="switchFS('ext4')">ext4</button>
+      <button class="fs-tab" data-fs="FAT32" onclick="switchFS('FAT32')">FAT32</button>
+    </div>
+    <span id="fsDesc" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></span>
+  </div>
+  <div class="disk-stats">
+    <div class="stat"><span class="stat-label">TOTAL</span><span class="stat-val" id="statTotal">512 KB</span></div>
+    <div class="stat"><span class="stat-label">USED</span><span class="stat-val used" id="statUsed">0 KB</span></div>
+    <div class="stat"><span class="stat-label">FREE</span><span class="stat-val free" id="statFree">0 KB</span></div>
+    <div class="stat"><span class="stat-label">FILES</span><span class="stat-val" id="statFiles">0</span></div>
+  </div>
+</div>
+
+<!-- Main 3-column grid -->
+<div class="main">
+
+  <!-- Left: Create + File List -->
+  <div style="display:flex;flex-direction:column;gap:12px;">
+
+    <!-- Create file -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Create File</span>
+        <span id="fsLabel" style="font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:600;background:var(--accent-light);padding:2px 7px;border-radius:3px;">NTFS</span>
+      </div>
+      <div class="panel-body">
+        <div class="form-group">
+          <label class="form-label">File name</label>
+          <input class="form-input" id="fName" type="text" placeholder="e.g. notes.txt" autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">File type</label>
+          <select class="form-select" id="fType" onchange="updateFileIcon()">
+            <option value="txt">.txt — Text</option>
+            <option value="jpg">.jpg — Image</option>
+            <option value="mp4">.mp4 — Video</option>
+            <option value="docx">.docx — Document</option>
+            <option value="zip">.zip — Archive</option>
+            <option value="py">.py — Source code</option>
+            <option value="bin">.bin — Binary</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Content / data</label>
+          <textarea class="form-input form-textarea" id="fContent" placeholder="Type file content here…&#10;&#10;Each character ≈ 1 byte. The simulator will calculate cluster usage automatically."></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;">
+            Size override <span id="sizeCalc" style="color:var(--accent);">auto</span>
+          </label>
+          <input class="form-input" id="fSizeOverride" type="number" min="1" max="9999" placeholder="Optional: enter KB manually" oninput="updateSizeCalc()"/>
+        </div>
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary" onclick="createFile()">⊕ Create &amp; Write to Disk</button>
+        </div>
+        <div id="errMsg" style="display:none;margin-top:8px;padding:7px 10px;background:var(--red-light);color:var(--red);border-radius:5px;font-size:11px;font-family:var(--mono);"></div>
+      </div>
+    </div>
+
+    <!-- File list -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Files on Disk</span>
+        <span id="fileCount" style="font-size:10px;font-family:var(--mono);color:var(--muted);">0 files</span>
+      </div>
+      <div class="panel-body" style="padding:8px;">
+        <div class="file-list" id="fileList">
+          <div class="empty-state"><div class="empty-icon">📂</div><div class="empty-text">No files yet.<br/>Create one above.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center: Disk visualization + MFT -->
+  <div style="display:flex;flex-direction:column;gap:12px;">
+
+    <!-- Disk cluster map -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Disk Cluster Map — 128 clusters × 4 KB</span>
+        <div class="disk-legend" id="diskLegend">
+          <div class="legend-item"><div class="legend-dot" style="background:#cbd5e1;border:1px solid #94a3b8"></div>System</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#fde68a;border:1px solid #f59e0b"></div><span id="mftLegendLabel">MFT Zone</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#fed7aa;border:1px solid #f97316"></div><span id="jrnLegendLabel">Journal</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ede9e0;border:1px solid #ddd8ce"></div>Free</div>
+        </div>
+      </div>
+      <div class="disk-wrap">
+        <div class="disk-grid" id="diskGrid"></div>
+        <div id="clusterInfo" style="min-height:32px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:6px 12px;font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;align-items:center;">
+          ← Hover over any cluster to inspect it
+        </div>
+      </div>
+    </div>
+
+    <!-- Master File Table -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title" id="mftTitle">Master File Table (MFT)</span>
+        <span style="font-size:10px;font-family:var(--mono);color:var(--muted)" id="mftSubtitle">NTFS · $MFT starts at cluster 2</span>
+      </div>
+      <div class="scrollable">
+        <table class="mft-table" id="mftTable">
+          <thead>
+            <tr>
+              <th id="mftCol0">#</th>
+              <th id="mftCol1">Name</th>
+              <th id="mftCol2">Type</th>
+              <th id="mftCol3">Size</th>
+              <th id="mftCol4">Clusters</th>
+              <th id="mftCol5">Modified</th>
+            </tr>
+          </thead>
+          <tbody id="mftBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Metadata + Hex view -->
+  <div style="display:flex;flex-direction:column;gap:12px;">
+
+    <div class="panel" id="metaPanel">
+      <div class="panel-header">
+        <span class="panel-title">File Metadata</span>
+        <span id="metaFileName" style="font-size:11px;font-family:var(--mono);color:var(--accent);font-weight:600;"></span>
+      </div>
+      <div class="panel-body">
+        <div id="metaContent">
+          <div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">Select a file to inspect its<br/>metadata &amp; cluster chain.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Storage explainer -->
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title" id="explainerTitle">How NTFS Stores This</span></div>
+      <div class="panel-body">
+        <div id="explainerContent" style="font-size:12px;color:var(--muted);line-height:1.7;font-family:var(--sans);">
+          <p style="margin-bottom:8px;">Select a filesystem at the top to see how it structures data on disk.</p>
+          <div id="fsExplainer"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Bottom info bar -->
+<div class="infobar">
+  <div class="info-item"><span class="info-key">FS:</span><span class="info-val" id="ibFS">NTFS</span></div>
+  <div class="info-item"><span class="info-key">Cluster size:</span><span class="info-val">4,096 bytes</span></div>
+  <div class="info-item"><span class="info-key">Total clusters:</span><span class="info-val">128</span></div>
+  <div class="info-item"><span class="info-key">System reserved:</span><span class="info-val" id="ibSysRes">—</span></div>
+  <div class="info-item"><span class="info-key">Index location:</span><span class="info-val" id="ibIndexLoc">—</span></div>
+  <div class="info-item"><span class="info-key">Corruption risk:</span><span class="info-val" id="ibCorrisk" style="color:var(--green)">Low (journal active)</span></div>
+  <div class="info-item" style="margin-left:auto;"><span class="info-key">Click file row or cluster to inspect</span></div>
+</div>
+
+</div><!-- end .app -->
+
+<div class="cluster-tooltip" id="clusterTooltip"></div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────────────
+const TOTAL_CLUSTERS = 128;
+const CLUSTER_SIZE_KB = 4;
+let currentFS = 'NTFS';
+let files = [];
+let selectedFileId = null;
+let nextId = 1;
+let clusters = new Array(TOTAL_CLUSTERS).fill(null); // null=free, 'system','mft','journal',or fileId
+
+// ─── FS Definitions ─────────────────────────────────────────────────────────
+const FS_CONFIG = {
+  NTFS: {
+    desc: 'New Technology File System · Windows',
+    indexName: 'Master File Table (MFT)',
+    indexShort: 'MFT',
+    indexLocation: 'Cluster 2–5 ($MFT zone)',
+    sysRes: 'Clusters 0–7 (boot + MFT + journal)',
+    journalName: 'Journal ($LogFile)',
+    journalLegend: 'Journal ($LogFile)',
+    mftLegend: 'MFT Zone ($MFT)',
+    corrisk: 'Very Low (journaling)',
+    systemClusters: [0, 1],       // boot sector, partition table
+    mftClusters: [2, 3, 4, 5],    // $MFT
+    journalClusters: [6, 7],      // $LogFile
+    col0: '#', col1: 'Filename', col2: 'Type', col3: 'Size', col4: 'Cluster run', col5: 'Last modified',
+    subtitle: 'NTFS · $MFT starts at cluster 2',
+    explainer: `<p style="margin-bottom:7px;"><strong>Boot Sector (C0–C1):</strong> The very first cluster contains the VBR (Volume Boot Record) — it tells the OS the cluster size, total clusters, and where the $MFT lives.</p>
+<p style="margin-bottom:7px;"><strong>$MFT Zone (C2–C5):</strong> The Master File Table is an array of 1 KB records, one per file. Each record stores: filename, timestamps, permissions, file size, and a <em>cluster run list</em> pointing to all data clusters.</p>
+<p style="margin-bottom:7px;"><strong>$LogFile / Journal (C6–C7):</strong> Before touching data, every write intention is logged here first. If power fails mid-write, Windows replays this log on next boot — preventing corruption.</p>
+<p><strong>Data clusters (C8+):</strong> Each file occupies one or more clusters. If a file grows, new clusters are appended and the MFT run-list is updated.</p>`
+  },
+  ext4: {
+    desc: 'Fourth Extended Filesystem · Linux',
+    indexName: 'Inode Table',
+    indexShort: 'inode',
+    indexLocation: 'Block group 0, after superblock',
+    sysRes: 'C0 (superblock + GDT + inode bitmap + block bitmap + inode table)',
+    journalName: 'Journal (ext-j)',
+    journalLegend: 'Journal (ext-j)',
+    mftLegend: 'Inode Table',
+    corrisk: 'Very Low (journaling)',
+    systemClusters: [0, 1, 2],
+    mftClusters: [3, 4, 5, 6],
+    journalClusters: [7, 8],
+    col0: 'inode', col1: 'Filename', col2: 'Type', col3: 'Size', col4: 'Block ptrs', col5: 'mtime',
+    subtitle: 'ext4 · Inode table in block group 0',
+    explainer: `<p style="margin-bottom:7px;"><strong>Superblock (C0):</strong> Stores filesystem parameters: block size, total blocks, inode count, and block group descriptors. Backup copies exist in multiple groups for redundancy.</p>
+<p style="margin-bottom:7px;"><strong>Inode Table (C3–C6):</strong> Each file/directory has an inode — a 256-byte record containing: size, timestamps, permissions, owner UID/GID, and up to 15 block pointers (12 direct + 1 indirect + 1 double-indirect + 1 triple-indirect for large files).</p>
+<p style="margin-bottom:7px;"><strong>Journal (C7–C8):</strong> ext4 uses a write-ahead journal. The kernel writes metadata changes here first; once confirmed on-disk, the journal entry is cleared.</p>
+<p><strong>Data blocks (C9+):</strong> The actual file content. Extents (contiguous ranges) are preferred over scattered block lists for better performance.</p>`
+  },
+  FAT32: {
+    desc: 'File Allocation Table 32-bit · Universal',
+    indexName: 'FAT Table',
+    indexShort: 'FAT',
+    indexLocation: 'Sector 1+ (two copies)',
+    sysRes: 'C0–C3 (boot record + two FAT copies)',
+    journalName: '(no journal)',
+    journalLegend: '(no journal)',
+    mftLegend: 'FAT Table',
+    corrisk: 'High — no journaling!',
+    systemClusters: [0, 1],
+    mftClusters: [2, 3, 4],
+    journalClusters: [],
+    col0: 'Entry', col1: 'Filename', col2: 'Attr', col3: 'Size', col4: 'First cluster', col5: 'Modified',
+    subtitle: 'FAT32 · FAT table at sector 1, root dir at cluster 2',
+    explainer: `<p style="margin-bottom:7px;"><strong>Boot Record (C0–C1):</strong> Contains the BIOS Parameter Block (BPB): bytes-per-sector, sectors-per-cluster, reserved sector count, and FAT count.</p>
+<p style="margin-bottom:7px;"><strong>FAT Table (C2–C4):</strong> A flat array of 32-bit entries, one per cluster. Each entry either holds the number of the <em>next</em> cluster in the file's chain, or special values: 0x00000000 (free), 0x0FFFFFF8 (end of chain), 0x0FFFFFF7 (bad cluster).</p>
+<p style="margin-bottom:7px;"><strong>No journal:</strong> FAT32 has no journaling. Power failure during a write can corrupt the FAT permanently — this is why NTFS and ext4 replaced it for system drives.</p>
+<p><strong>Root directory (C5+):</strong> Fixed-size 32-byte directory entries store: 8.3 filename, attributes (read-only/hidden/system/directory), first cluster number, and file size.</p>`
+  }
+};
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+function init() {
+  applyFS('NTFS');
+  renderDiskGrid();
+  renderMFT();
+  renderFileList();
+}
+
+function applyFS(fs) {
+  currentFS = fs;
+  const c = FS_CONFIG[fs];
+  // update cluster ownership
+  clusters.fill(null);
+  c.systemClusters.forEach(i => { if(i<TOTAL_CLUSTERS) clusters[i]='system'; });
+  c.mftClusters.forEach(i => { if(i<TOTAL_CLUSTERS) clusters[i]='mft'; });
+  c.journalClusters.forEach(i => { if(i<TOTAL_CLUSTERS) clusters[i]='journal'; });
+  // re-allocate user files if any
+  files.forEach(f => f.clusters.forEach(ci => { if(ci<TOTAL_CLUSTERS) clusters[ci]=f.id; }));
+  // UI updates
+  document.getElementById('fsLabel').textContent = fs;
+  document.getElementById('fsDesc').textContent = c.desc;
+  document.getElementById('mftTitle').textContent = c.indexName;
+  document.getElementById('mftSubtitle').textContent = c.subtitle;
+  document.getElementById('mftLegendLabel').textContent = c.mftLegend;
+  document.getElementById('jrnLegendLabel').textContent = c.journalLegend;
+  document.getElementById('ibFS').textContent = fs;
+  document.getElementById('ibSysRes').textContent = c.sysRes;
+  document.getElementById('ibIndexLoc').textContent = c.indexLocation;
+  document.getElementById('ibCorrisk').textContent = c.corrisk;
+  document.getElementById('ibCorrisk').style.color = fs==='FAT32' ? 'var(--red)' : 'var(--green)';
+  document.getElementById('explainerTitle').textContent = `How ${fs} Stores This`;
+  document.getElementById('fsExplainer').innerHTML = c.explainer;
+  // MFT column headers
+  ['col0','col1','col2','col3','col4','col5'].forEach((col,i) => {
+    const k = `col${i}`;
+    document.getElementById('mftCol'+i).textContent = c[k]||c['col'+i];
+  });
+  document.querySelectorAll('.fs-tab').forEach(t => t.classList.toggle('active', t.dataset.fs===fs));
+  updateStats();
+}
+
+function switchFS(fs) { applyFS(fs); renderDiskGrid(); renderMFT(); renderFileList(); renderMeta(); }
+
+// ─── File colors ─────────────────────────────────────────────────────────────
+const FILE_COLORS = [
+  '#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4',
+  '#84cc16','#f97316','#a78bfa','#34d399','#fb923c'
+];
+const FILE_PALETTES = [
+  {bg:'#dbeafe',border:'#93c5fd',text:'#1e40af'},
+  {bg:'#d1fae5',border:'#6ee7b7',text:'#065f46'},
+  {bg:'#fef3c7',border:'#fcd34d',text:'#78350f'},
+  {bg:'#fee2e2',border:'#fca5a5',text:'#7f1d1d'},
+  {bg:'#ede9fe',border:'#c4b5fd',text:'#4c1d95'},
+  {bg:'#fce7f3',border:'#f9a8d4',text:'#831843'},
+  {bg:'#cffafe',border:'#67e8f9',text:'#164e63'},
+  {bg:'#ecfccb',border:'#a3e635',text:'#365314'},
+];
+function filePalette(idx) { return FILE_PALETTES[idx % FILE_PALETTES.length]; }
+function fileColor(idx) { return FILE_COLORS[idx % FILE_COLORS.length]; }
+
+function typeClass(t) {
+  const m = {txt:'fc-txt',jpg:'fc-img',png:'fc-img',mp4:'fc-vid',mov:'fc-vid',
+    docx:'fc-doc',pdf:'fc-doc',zip:'fc-zip',tar:'fc-zip',py:'fc-src',js:'fc-src',bin:'fc-oth'};
+  return m[t]||'fc-oth';
+}
+function typeIcon(t) {
+  const m = {txt:'TXT',jpg:'IMG',png:'IMG',mp4:'VID',mov:'VID',
+    docx:'DOC',pdf:'PDF',zip:'ZIP',tar:'ZIP',py:'PY',js:'JS',bin:'BIN'};
+  return m[t]||t.toUpperCase().slice(0,3);
+}
+
+// ─── Create file ─────────────────────────────────────────────────────────────
+function createFile() {
+  const name = document.getElementById('fName').value.trim();
+  const type = document.getElementById('fType').value;
+  const content = document.getElementById('fContent').value;
+  const overrideKB = parseInt(document.getElementById('fSizeOverride').value) || 0;
+  const errEl = document.getElementById('errMsg');
+
+  if (!name) { showErr('Please enter a file name.'); return; }
+  if (files.find(f => f.name === name)) { showErr(`File "${name}" already exists.`); return; }
+
+  // Calculate size
+  const contentBytes = new TextEncoder().encode(content).length || 0;
+  const sizeBytes = overrideKB > 0 ? overrideKB * 1024 : Math.max(contentBytes, 1);
+  const clustersNeeded = Math.ceil(sizeBytes / (CLUSTER_SIZE_KB * 1024));
+
+  // Find free clusters
+  const c = FS_CONFIG[currentFS];
+  const reservedEnd = Math.max(...c.systemClusters, ...c.mftClusters, ...c.journalClusters, -1) + 1;
+  const freeClusters = [];
+  for (let i = reservedEnd; i < TOTAL_CLUSTERS; i++) {
+    if (clusters[i] === null) freeClusters.push(i);
+    if (freeClusters.length === clustersNeeded) break;
+  }
+
+  if (freeClusters.length < clustersNeeded) {
+    showErr(`Not enough free space. Need ${clustersNeeded} clusters, only ${freeClusters.length} free.`);
+    return;
+  }
+
+  errEl.style.display = 'none';
+
+  const id = nextId++;
+  const now = new Date();
+  const file = {
+    id, name, type, content, sizeBytes,
+    clustersNeeded, clusters: freeClusters,
+    colorIdx: (id - 1) % FILE_COLORS.length,
+    created: now, modified: now,
+    permissions: type==='py'||type==='sh' ? 'rwxr-xr-x' : 'rw-r--r--',
+    inode: 100 + id,
+    mftEntry: 30 + id,
+    fragmented: isFragmented(freeClusters),
+  };
+
+  files.push(file);
+  freeClusters.forEach(ci => { clusters[ci] = id; });
+
+  selectedFileId = id;
+  document.getElementById('fName').value = '';
+  document.getElementById('fContent').value = '';
+  document.getElementById('fSizeOverride').value = '';
+  updateSizeCalc();
+
+  renderDiskGrid();
+  renderMFT();
+  renderFileList();
+  renderMeta();
+  updateStats();
+}
+
+function showErr(msg) {
+  const e = document.getElementById('errMsg');
+  e.textContent = msg; e.style.display='block';
+}
+
+function isFragmented(clusterList) {
+  for (let i = 1; i < clusterList.length; i++) {
+    if (clusterList[i] !== clusterList[i-1] + 1) return true;
+  }
+  return false;
+}
+
+function deleteFile(id) {
+  const idx = files.findIndex(f => f.id === id);
+  if (idx === -1) return;
+  files[idx].clusters.forEach(ci => { clusters[ci] = null; });
+  files.splice(idx, 1);
+  if (selectedFileId === id) selectedFileId = null;
+  renderDiskGrid(); renderMFT(); renderFileList(); renderMeta(); updateStats();
+}
+
+function selectFile(id) {
+  selectedFileId = id;
+  renderFileList();
+  renderMeta();
+  highlightFileClusters(id);
+}
+
+// ─── Disk grid ───────────────────────────────────────────────────────────────
+function renderDiskGrid() {
+  const grid = document.getElementById('diskGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < TOTAL_CLUSTERS; i++) {
+    const div = document.createElement('div');
+    div.className = 'cluster';
+    div.dataset.idx = i;
+    const owner = clusters[i];
+    if (owner === 'system') { div.classList.add('system'); }
+    else if (owner === 'mft') { div.classList.add('mft'); }
+    else if (owner === 'journal') { div.classList.add('journal'); }
+    else if (owner === null) { div.classList.add('free'); }
+    else {
+      const f = files.find(f => f.id === owner);
+      if (f) {
+        const pal = filePalette(f.colorIdx);
+        div.style.background = pal.bg;
+        div.style.borderColor = pal.border;
+        if (selectedFileId === f.id) div.classList.add('selected-cluster');
+      }
+    }
+    div.addEventListener('mouseenter', e => showClusterTooltip(i, e));
+    div.addEventListener('mouseleave', hideClusterTooltip);
+    div.addEventListener('mousemove', e => moveTooltip(e));
+    div.addEventListener('click', () => clusterClick(i));
+    grid.appendChild(div);
+  }
+}
+
+function clusterClick(i) {
+  const owner = clusters[i];
+  if (typeof owner === 'number') { selectFile(owner); }
+}
+
+function highlightFileClusters(id) {
+  document.querySelectorAll('.cluster').forEach(el => {
+    const i = parseInt(el.dataset.idx);
+    if (clusters[i] === id) el.classList.add('selected-cluster');
+    else el.classList.remove('selected-cluster');
+  });
+}
+
+function showClusterTooltip(i, e) {
+  const tip = document.getElementById('clusterTooltip');
+  const owner = clusters[i];
+  let html = `<strong>Cluster ${i}</strong> (offset ${(i*CLUSTER_SIZE_KB).toLocaleString()} KB)\n`;
+  if (owner === null) html += `Status: FREE\n4 KB available`;
+  else if (owner === 'system') html += `Status: SYSTEM RESERVED\nBoot record / partition table`;
+  else if (owner === 'mft') { const l = FS_CONFIG[currentFS].mftLegend; html += `Status: ${l.toUpperCase()}\n${FS_CONFIG[currentFS].indexLocation}`; }
+  else if (owner === 'journal') html += `Status: ${FS_CONFIG[currentFS].journalName.toUpperCase()}\nTransaction journal`;
+  else {
+    const f = files.find(f => f.id === owner);
+    if (f) {
+      const ci = f.clusters.indexOf(i);
+      html += `File: ${f.name}\nCluster #${ci+1} of ${f.clusters.length}\nSize in cluster: ${ci===f.clusters.length-1 ? ((f.sizeBytes % (CLUSTER_SIZE_KB*1024))||CLUSTER_SIZE_KB*1024).toLocaleString()+' B' : (CLUSTER_SIZE_KB*1024).toLocaleString()+' B (full)'}`;
+    }
+  }
+  tip.style.display = 'block';
+  tip.textContent = '';
+  tip.style.whiteSpace = 'pre';
+  tip.textContent = html;
+  moveTooltip(e);
+  // update info bar
+  document.getElementById('clusterInfo').textContent = tip.textContent.replace(/\n/g, '  ·  ');
+}
+
+function hideClusterTooltip() {
+  document.getElementById('clusterTooltip').style.display = 'none';
+  document.getElementById('clusterInfo').textContent = '← Hover over any cluster to inspect it';
+}
+
+function moveTooltip(e) {
+  const tip = document.getElementById('clusterTooltip');
+  tip.style.left = (e.clientX + 14) + 'px';
+  tip.style.top = (e.clientY - 10) + 'px';
+}
+
+// ─── MFT / inode table ───────────────────────────────────────────────────────
+function renderMFT() {
+  const tbody = document.getElementById('mftBody');
+  tbody.innerHTML = '';
+  const c = FS_CONFIG[currentFS];
+
+  // System entries
+  const sysEntries = currentFS === 'NTFS'
+    ? [['0','$MFT','SYSTEM','~64 KB','C2–C5','—'],['1','$MFTMirr','SYSTEM','4 KB','C6','—'],['2','$LogFile','JOURNAL','64 KB','C6–C7','—'],['3','$Volume','SYSTEM','1 KB','C1','—'],['4','$Bitmap','SYSTEM','2 KB','C1','—']]
+    : currentFS === 'ext4'
+    ? [['1','/ (root)','DIR','4 KB','C3','—'],['2','lost+found','DIR','16 KB','C4','—'],['8','journal','JOURNAL','64 KB','C7–C8','—']]
+    : [['—','[Boot Record]','SYSTEM','4 KB','C0–C1','—'],['—','[FAT copy 1]','FAT','8 KB','C2–C3','—'],['—','[FAT copy 2]','FAT','8 KB','C4','—'],['—','[Root Dir]','DIR','4 KB','C5','—']];
+
+  sysEntries.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.className = 'sys-row';
+    tr.innerHTML = row.map((v,i)=>{
+      if(i===4){ return `<td><div class="cluster-chain">${v.split(',').map(x=>`<span class="chain-badge sys">${x.trim()}</span>`).join('')}</div></td>`; }
+      return `<td>${v}</td>`;
+    }).join('');
+    tbody.appendChild(tr);
+  });
+
+  // User files
+  files.forEach(f => {
+    const pal = filePalette(f.colorIdx);
+    const tr = document.createElement('tr');
+    tr.className = 'file-row slide-in' + (selectedFileId === f.id ? ' selected' : '');
+    tr.dataset.fid = f.id;
+    tr.onclick = () => selectFile(f.id);
+
+    const entryNum = currentFS === 'NTFS' ? f.mftEntry : currentFS === 'ext4' ? f.inode : f.id + 10;
+    const clustersStr = f.clusters.length <= 6
+      ? f.clusters.map(ci => `<span class="chain-badge" style="background:${pal.bg};color:${pal.text};border-color:${pal.border};">C${ci}</span>`).join('')
+      : f.clusters.slice(0,5).map(ci => `<span class="chain-badge" style="background:${pal.bg};color:${pal.text};border-color:${pal.border};">C${ci}</span>`).join('') + `<span class="chain-badge" style="background:#f1f5f9;color:#64748b;border-color:#cbd5e1;">+${f.clusters.length-5} more</span>`;
+
+    const permissions = currentFS === 'NTFS' ? '(standard)' : f.permissions;
+    const mod = f.modified.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+    tr.innerHTML = `
+      <td>${entryNum}</td>
+      <td style="font-weight:600;">${f.name}</td>
+      <td><span class="tag ${typeClass(f.type)}">.${f.type}</span></td>
+      <td>${formatBytes(f.sizeBytes)}</td>
+      <td><div class="cluster-chain">${clustersStr}</div></td>
+      <td>${mod}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  if (!files.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="6" style="text-align:center;padding:20px;color:var(--muted);font-style:italic;">No user files yet</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+// ─── File list sidebar ───────────────────────────────────────────────────────
+function renderFileList() {
+  const list = document.getElementById('fileList');
+  document.getElementById('fileCount').textContent = `${files.length} file${files.length!==1?'s':''}`;
+  if (!files.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-text">No files yet.<br/>Create one above.</div></div>`;
+    return;
+  }
+  list.innerHTML = '';
+  files.forEach(f => {
+    const pal = filePalette(f.colorIdx);
+    const div = document.createElement('div');
+    div.className = 'file-item' + (selectedFileId === f.id ? ' selected' : '');
+    div.onclick = () => selectFile(f.id);
+    div.innerHTML = `
+      <div class="file-icon tag ${typeClass(f.type)}" style="background:${pal.bg};color:${pal.text};">${typeIcon(f.type)}</div>
+      <div class="file-info">
+        <div class="file-name">${f.name}</div>
+        <div class="file-size">${formatBytes(f.sizeBytes)} · ${f.clusters.length} cluster${f.clusters.length!==1?'s':''} · ${f.fragmented?'⚠ fragmented':'contiguous'}</div>
+      </div>
+      <button class="file-del" title="Delete" onclick="event.stopPropagation();deleteFile(${f.id})">✕</button>`;
+    list.appendChild(div);
+  });
+}
+
+// ─── Metadata panel ──────────────────────────────────────────────────────────
+function renderMeta() {
+  const content = document.getElementById('metaContent');
+  const titleEl = document.getElementById('metaFileName');
+  if (!selectedFileId) {
+    titleEl.textContent = '';
+    content.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">Select a file to inspect its<br/>metadata &amp; cluster chain.</div></div>`;
+    return;
+  }
+  const f = files.find(f => f.id === selectedFileId);
+  if (!f) return;
+  const pal = filePalette(f.colorIdx);
+  titleEl.textContent = f.name;
+
+  const c = FS_CONFIG[currentFS];
+  const waste = (f.clusters.length * CLUSTER_SIZE_KB * 1024) - f.sizeBytes;
+
+  // Cluster chain visual
+  const chainViz = f.clusters.slice(0, 24).map((ci,i) => {
+    const isLast = i === Math.min(f.clusters.length,24) - 1 && f.clusters.length <= 24;
+    return `<span style="display:inline-flex;align-items:center;gap:2px;margin:2px 0;">
+      <span style="background:${pal.bg};border:1px solid ${pal.border};color:${pal.text};padding:2px 6px;border-radius:3px;font-family:var(--mono);font-size:10px;font-weight:600;">C${ci}</span>${isLast?'':i===Math.min(f.clusters.length,24)-1?'<span style="font-size:9px;color:var(--muted);">→…</span>':'<span style="font-size:10px;color:var(--muted);">→</span>'}
+    </span>`;
+  }).join('');
+
+  // Hex-like view of content
+  const hex = makeHexView(f.content, f.sizeBytes);
+
+  content.innerHTML = `
+    <div class="meta-section">
+      <div class="meta-heading">${c.indexShort === 'FAT' ? 'Directory Entry' : c.indexShort+' Record'} #${c.indexShort==='inode'?f.inode:c.indexShort==='FAT'?f.id+10:f.mftEntry}</div>
+      <div class="meta-row"><span class="meta-key">Name</span><span class="meta-val accent">${f.name}</span></div>
+      <div class="meta-row"><span class="meta-key">Type</span><span class="meta-val">.${f.type}</span></div>
+      <div class="meta-row"><span class="meta-key">Size (bytes)</span><span class="meta-val">${f.sizeBytes.toLocaleString()} B</span></div>
+      <div class="meta-row"><span class="meta-key">Clusters used</span><span class="meta-val">${f.clusters.length} × 4 KB = ${(f.clusters.length*4).toLocaleString()} KB</span></div>
+      <div class="meta-row"><span class="meta-key">Slack space</span><span class="meta-val ${waste>2048?'red':'green'}">${waste.toLocaleString()} B wasted</span></div>
+      <div class="meta-row"><span class="meta-key">Fragmented</span><span class="meta-val ${f.fragmented?'red':'green'}">${f.fragmented?'Yes ⚠':'No ✓'}</span></div>
+      <div class="meta-row"><span class="meta-key">Permissions</span><span class="meta-val">${f.permissions}</span></div>
+      <div class="meta-row"><span class="meta-key">Created</span><span class="meta-val">${f.created.toLocaleTimeString()}</span></div>
+      <div class="meta-row"><span class="meta-key">Modified</span><span class="meta-val">${f.modified.toLocaleTimeString()}</span></div>
+    </div>
+    <div class="meta-section">
+      <div class="meta-heading">Cluster Chain (${c.indexShort==='FAT'?'FAT linked list':'run list'})</div>
+      <div style="margin:4px 0 6px;line-height:1.8;">${chainViz}</div>
+      ${f.fragmented?`<div style="font-size:11px;color:var(--amber);font-family:var(--mono);background:var(--amber-light);border-radius:4px;padding:5px 8px;">⚠ File is fragmented — clusters are non-contiguous. This slows reads on HDDs.</div>`:''}
+    </div>
+    <div class="meta-section">
+      <div class="meta-heading">Data Preview (hex)</div>
+      <div class="hex-view">${hex}</div>
+    </div>`;
+}
+
+function makeHexView(content, sizeBytes) {
+  const bytes = new TextEncoder().encode(content || '');
+  const limit = Math.min(bytes.length, 48);
+  let lines = '';
+  for (let r = 0; r < Math.ceil(limit/16); r++) {
+    const off = (r*16).toString(16).padStart(4,'0').toUpperCase();
+    let hexPart = '', ascPart = '';
+    for (let c = 0; c < 16; c++) {
+      const idx = r*16+c;
+      if (idx < limit) {
+        const b = bytes[idx];
+        hexPart += b.toString(16).padStart(2,'0').toUpperCase() + (c===7?' | ':' ');
+        ascPart += (b>=32&&b<127) ? String.fromCharCode(b) : '·';
+      } else if (idx < sizeBytes/1 && bytes.length < sizeBytes) {
+        hexPart += '?? ' + (c===7?'| ':'');
+        ascPart += '?';
+      } else {
+        hexPart += '   ' + (c===7?'  ':'');
+        ascPart += ' ';
+      }
+    }
+    lines += `<span class="hex-addr">${off}</span>  <span class="hex-byte">${hexPart.trimEnd()}</span>  <span class="hex-ascii">${ascPart}</span>\n`;
+  }
+  if (sizeBytes > 48) lines += `<span style="color:var(--muted);">... ${(sizeBytes-48).toLocaleString()} more bytes ...</span>`;
+  return lines || '<span style="color:var(--muted);">(empty file)</span>';
+}
+
+// ─── Stats ───────────────────────────────────────────────────────────────────
+function updateStats() {
+  const c = FS_CONFIG[currentFS];
+  const reserved = c.systemClusters.length + c.mftClusters.length + c.journalClusters.length;
+  const usedByFiles = files.reduce((s,f) => s + f.clusters.length, 0);
+  const totalKB = TOTAL_CLUSTERS * CLUSTER_SIZE_KB;
+  const usedKB = (reserved + usedByFiles) * CLUSTER_SIZE_KB;
+  const freeKB = (TOTAL_CLUSTERS - reserved - usedByFiles) * CLUSTER_SIZE_KB;
+  document.getElementById('statTotal').textContent = `${totalKB} KB`;
+  document.getElementById('statUsed').textContent = `${usedKB} KB`;
+  document.getElementById('statFree').textContent = `${freeKB} KB`;
+  document.getElementById('statFiles').textContent = files.length;
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  return (b/1024/1024).toFixed(1) + ' MB';
+}
+
+function updateSizeCalc() {
+  const v = parseInt(document.getElementById('fSizeOverride').value) || 0;
+  const c = document.getElementById('fContent').value;
+  const cBytes = new TextEncoder().encode(c).length;
+  if (v > 0) {
+    const cl = Math.ceil(v*1024/(CLUSTER_SIZE_KB*1024));
+    document.getElementById('sizeCalc').textContent = `${v} KB → ${cl} cluster${cl!==1?'s':''}`;
+  } else if (cBytes > 0) {
+    const cl = Math.ceil(cBytes/(CLUSTER_SIZE_KB*1024));
+    document.getElementById('sizeCalc').textContent = `${cBytes} B → ${cl} cluster${cl!==1?'s':''}`;
+  } else {
+    document.getElementById('sizeCalc').textContent = 'auto';
+  }
+}
+
+document.getElementById('fContent').addEventListener('input', updateSizeCalc);
+
+// ─── Start ────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
