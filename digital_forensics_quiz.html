@@ -1,0 +1,1520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Digital Forensics — Case Study Quiz</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --surface2: #eef3fb;
+    --border: #d6deeb;
+    --gold: #b8892b;
+    --gold-dim: #8f6720;
+    --accent: #1e63c6;
+    --accent2: #0e9f6e;
+    --text: #182033;
+    --text-dim: #334155;
+    --text-muted: #64748b;
+    --correct: #22d3a0;
+    --wrong: #ff5b6b;
+    --unanswered: #f59e0b;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 16px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── NOISE TEXTURE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.12;
+  }
+
+  /* ── HEADER ── */
+  .site-header {
+    position: relative;
+    text-align: center;
+    padding: 56px 24px 40px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #e9effa 0%, var(--bg) 100%);
+    overflow: hidden;
+  }
+  .site-header::before {
+    content: '';
+    position: absolute;
+    top: -60px; left: 50%; transform: translateX(-50%);
+    width: 500px; height: 200px;
+    background: radial-gradient(ellipse, rgba(184,137,43,0.16) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .badge {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--gold);
+    border: 1px solid var(--gold-dim);
+    padding: 4px 14px;
+    border-radius: 2px;
+    margin-bottom: 18px;
+    text-transform: uppercase;
+  }
+  .site-header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(26px, 4vw, 42px);
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+  }
+  .site-header h1 span { color: var(--gold); }
+  .site-header p {
+    margin-top: 12px;
+    color: var(--text-dim);
+    font-size: 15px;
+    font-style: italic;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .header-meta {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+  }
+  .header-meta-item {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .header-meta-item span { color: var(--accent); }
+
+  /* ── TABS ── */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    overflow-x: auto;
+  }
+  .tab-btn {
+    flex: 1;
+    min-width: 200px;
+    padding: 18px 24px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.25s;
+    position: relative;
+  }
+  .tab-btn:hover { color: var(--text-dim); background: rgba(255,255,255,0.02); }
+  .tab-btn.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+    background: rgba(184,137,43,0.08);
+  }
+  .tab-btn .tab-label { display: block; font-size: 11px; margin-bottom: 2px; }
+  .tab-btn .tab-title { display: block; font-size: 13px; font-weight: 600; }
+  .tab-score-badge {
+    display: none;
+    position: absolute;
+    top: 8px; right: 8px;
+    font-size: 10px;
+    background: var(--accent2);
+    color: #000;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .tab-score-badge.visible { display: block; }
+
+  /* ── MAIN LAYOUT ── */
+  .main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+
+  /* ── CASE STUDY PANEL ── */
+  .case-panel { display: none; }
+  .case-panel.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: none; } }
+
+  .case-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 36px;
+    overflow: hidden;
+  }
+  .case-card-header {
+    background: linear-gradient(135deg, var(--surface2) 0%, rgba(184,137,43,0.10) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 24px 28px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .case-number {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--gold);
+    background: rgba(212,168,83,0.1);
+    border: 1px solid rgba(212,168,83,0.25);
+    padding: 4px 10px;
+    border-radius: 3px;
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+  .case-card-header-text h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .case-card-header-text .topic-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  .case-body { padding: 28px; }
+  .case-body p {
+    color: var(--text-dim);
+    font-size: 15px;
+    line-height: 1.75;
+    margin-bottom: 12px;
+  }
+  .case-body p:last-child { margin-bottom: 0; }
+  .case-highlight {
+    background: rgba(30,99,198,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    border-radius: 0 6px 6px 0;
+    margin: 16px 0;
+    font-size: 14px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+  .evidence-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+  .evidence-table th {
+    background: rgba(42,54,80,0.8);
+    color: var(--gold);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .evidence-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(42,54,80,0.5);
+    color: var(--text-dim);
+    vertical-align: top;
+  }
+  .evidence-table tr:last-child td { border-bottom: none; }
+  .evidence-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* ── QUESTIONS ── */
+  .questions-section h3 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .question-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .question-block::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--border);
+    transition: background 0.2s;
+  }
+  .question-block.answered::before { background: var(--gold-dim); }
+  .question-block.result-correct::before { background: var(--correct); }
+  .question-block.result-wrong::before { background: var(--wrong); }
+
+  .question-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .question-text {
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 600;
+    line-height: 1.55;
+    margin-bottom: 16px;
+  }
+
+  .options { display: flex; flex-direction: column; gap: 8px; }
+  .option-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 11px 16px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+  .option-label:hover { border-color: var(--gold-dim); background: rgba(212,168,83,0.04); color: var(--text); }
+  .option-label input[type=radio] { display: none; }
+  .option-letter {
+    flex-shrink: 0;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: all 0.15s;
+    margin-top: 1px;
+  }
+  .option-label:has(input:checked) {
+    border-color: var(--gold);
+    background: rgba(184,137,43,0.10);
+    color: var(--text);
+  }
+  .option-label:has(input:checked) .option-letter {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #000;
+  }
+
+  /* Result states */
+  .results-shown .option-label.is-correct {
+    border-color: var(--correct) !important;
+    background: rgba(34,211,160,0.08) !important;
+    color: var(--text) !important;
+  }
+  .results-shown .option-label.is-correct .option-letter {
+    background: var(--correct) !important;
+    border-color: var(--correct) !important;
+    color: #000 !important;
+  }
+  .results-shown .option-label.is-wrong-selected {
+    border-color: var(--wrong) !important;
+    background: rgba(255,91,107,0.08) !important;
+  }
+  .results-shown .option-label.is-wrong-selected .option-letter {
+    background: var(--wrong) !important;
+    border-color: var(--wrong) !important;
+    color: #fff !important;
+  }
+  .results-shown .option-label { cursor: default; pointer-events: none; }
+
+  .result-explanation {
+    display: none;
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    font-style: italic;
+  }
+  .results-shown .result-explanation { display: block; }
+  .result-explanation.exp-correct {
+    background: rgba(34,211,160,0.08);
+    border: 1px solid rgba(34,211,160,0.2);
+    color: var(--correct);
+  }
+  .result-explanation.exp-wrong {
+    background: rgba(255,91,107,0.08);
+    border: 1px solid rgba(255,91,107,0.2);
+    color: var(--wrong);
+  }
+
+  /* ── PROGRESS BAR ── */
+  .progress-bar-wrap {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 0 28px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+  .progress-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ── CHECK RESULTS BUTTON ── */
+  .submit-area {
+    margin-top: 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .btn-check {
+    padding: 14px 36px;
+    background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+    color: #1f2937;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(212,168,83,0.25);
+  }
+  .btn-check:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(212,168,83,0.35);
+  }
+  .btn-check:active { transform: translateY(0); }
+  .btn-reset {
+    padding: 12px 24px;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-reset:hover { border-color: var(--text-muted); color: var(--text-dim); }
+
+  .unanswered-warning {
+    display: none;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--unanswered);
+    padding: 10px 14px;
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 6px;
+    background: rgba(245,158,11,0.06);
+    margin-top: 8px;
+    width: 100%;
+  }
+
+  /* ── SCORE CARD ── */
+  .score-card {
+    display: none;
+    background: linear-gradient(135deg, var(--surface2) 0%, rgba(184,137,43,0.10) 100%);
+    border: 1px solid var(--gold-dim);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    margin-top: 24px;
+    text-align: center;
+    animation: fadeIn 0.4s ease;
+  }
+  .score-card.visible { display: block; }
+  .score-card h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    color: var(--gold);
+    margin-bottom: 16px;
+  }
+  .score-big {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 52px;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1;
+  }
+  .score-big span { font-size: 24px; color: var(--text-muted); }
+  .score-grade {
+    margin-top: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .score-bar-wrap {
+    margin: 20px auto;
+    max-width: 300px;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+  .score-breakdown {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .score-stat {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+  }
+  .score-stat .val { font-size: 20px; font-weight: 600; display: block; }
+  .score-stat .lbl { color: var(--text-muted); font-size: 11px; }
+
+  /* ── PASSWORD MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,0.35);
+    backdrop-filter: blur(6px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+    box-shadow: 0 20px 70px rgba(15,23,42,0.25);
+    animation: modalPop 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  @keyframes modalPop {
+    from { transform: scale(0.92); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .modal-icon {
+    width: 56px; height: 56px;
+    background: rgba(212,168,83,0.1);
+    border: 1px solid rgba(212,168,83,0.25);
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  .modal-box h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+  .modal-box p {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .modal-input {
+    width: 100%;
+    padding: 13px 16px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    letter-spacing: 3px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+    margin-bottom: 6px;
+  }
+  .modal-input:focus { border-color: var(--gold); }
+  .modal-input.error { border-color: var(--wrong); animation: shake 0.3s ease; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  .modal-error {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--wrong);
+    min-height: 16px;
+    margin-bottom: 16px;
+  }
+  .btn-modal-submit {
+    width: 100%;
+    padding: 13px;
+    background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+    color: #0a0d14;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-modal-submit:hover { filter: brightness(1.1); }
+  .btn-modal-cancel {
+    margin-top: 10px;
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .btn-modal-cancel:hover { color: var(--text-dim); }
+
+  /* ── FOOTER ── */
+  .site-footer {
+    text-align: center;
+    padding: 30px;
+    border-top: 1px solid var(--border);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+  }
+
+  @media (max-width: 600px) {
+    .tab-btn { min-width: 150px; padding: 14px 16px; }
+    .case-body { padding: 18px; }
+    .question-block { padding: 18px; }
+    .modal-box { padding: 28px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header class="site-header">
+  <div class="badge">Digital Forensics Investigations</div>
+  <h1>Case Study <span>Quiz</span></h1>
+  <p>Three real-world forensic scenarios. 20 questions each. Test your knowledge across the full investigation lifecycle.</p>
+  <div class="header-meta">
+    <div class="header-meta-item">Case Studies: <span>3</span></div>
+    <div class="header-meta-item">Questions per Case: <span>20</span></div>
+    <div class="header-meta-item">Total Questions: <span>60</span></div>
+  </div>
+</header>
+
+<!-- ── TABS ── -->
+<nav class="tab-bar" id="tabBar">
+  <button class="tab-btn active" onclick="switchTab(0)" id="tab-0">
+    <span class="tab-label">Case Study 01</span>
+    <span class="tab-title">The NIST Data Leakage</span>
+    <span class="tab-score-badge" id="tab-score-0"></span>
+  </button>
+  <button class="tab-btn" onclick="switchTab(1)" id="tab-1">
+    <span class="tab-label">Case Study 02</span>
+    <span class="tab-title">Evidence &amp; Acquisition</span>
+    <span class="tab-score-badge" id="tab-score-1"></span>
+  </button>
+  <button class="tab-btn" onclick="switchTab(2)" id="tab-2">
+    <span class="tab-label">Case Study 03</span>
+    <span class="tab-title">Operation DataBreach</span>
+    <span class="tab-score-badge" id="tab-score-2"></span>
+  </button>
+</nav>
+
+<!-- ── MAIN ── -->
+<main class="main">
+
+<!-- ════════════════════════════
+     CASE STUDY 1
+════════════════════════════ -->
+<section class="case-panel active" id="panel-0">
+
+  <div class="case-card">
+    <div class="case-card-header">
+      <div class="case-number">CASE 01</div>
+      <div class="case-card-header-text">
+        <h2>The NIST CFReDS Data Leakage Investigation</h2>
+        <div class="topic-tag">Topics: Forensic Stages · Investigation Tools · Anti-Forensics · Evidence Reconstruction</div>
+      </div>
+    </div>
+    <div class="case-body">
+      <p>A corporate employee was suspected of systematically leaking confidential company data to a competitor. Over a three-day period, the suspect conducted a carefully planned operation that involved research, data exfiltration across multiple media, and active anti-forensic measures to hide their tracks.</p>
+      <div class="case-highlight">
+        "The suspect searched the web for data-leakage methods, connected an authorised USB, searched for confidential files, copied them, renamed them, and emailed a sample. The next day, they copied files to a second USB, quick-formatted it, and burned data to a CD. On the final day, they installed Eraser and CCleaner, wiped files, and removed all software."
+      </div>
+      <p>Despite these countermeasures, investigators were able to reconstruct the full chain of events using digital artefacts that remained on the system — including file-system metadata, browser history, email artefacts, cloud logs, removable media traces, and Windows Search data.</p>
+      <p>This case is based on the NIST CFReDS Data Leakage scenario and illustrates how the five stages of digital forensics (Identification, Preservation, Analysis, Documentation, Presentation) apply to a real investigation.</p>
+
+      <table class="evidence-table">
+        <tr><th>Forensic Stage</th><th>Suspect Tools</th><th>Investigator Tools</th></tr>
+        <tr><td>Identification</td><td>IE, Chrome, Google, Bing, Outlook</td><td>Write blockers</td></tr>
+        <tr><td>Preservation</td><td>—</td><td>FTK Imager 3.4.0.1, EnCase Imager</td></tr>
+        <tr><td>Analysis</td><td>Windows Search, USB RM#1</td><td>PhotoRec</td></tr>
+        <tr><td>Exfiltration</td><td>Outlook, Google Drive, USB RM#2, CD-R</td><td>FTK Imager, EnCase</td></tr>
+        <tr><td>Anti-Forensics</td><td>CCleaner, Eraser</td><td>FTK Imager (artefact traces)</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="questions-section">
+    <div class="progress-label">
+      <span>QUESTIONS — CASE STUDY 01</span>
+      <span id="prog-label-0">0 / 20 answered</span>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog-bar-0"></div></div>
+
+    <div id="questions-0"></div>
+
+    <div class="submit-area">
+      <button class="btn-check" onclick="openModal(0)">🔐 Check Results</button>
+      <button class="btn-reset" onclick="resetQuiz(0)">↺ Reset</button>
+    </div>
+    <div class="unanswered-warning" id="warn-0">⚠ Please answer all 20 questions before checking results.</div>
+    <div class="score-card" id="score-card-0">
+      <h3>📊 Case Study 01 — Results</h3>
+      <div class="score-big" id="score-big-0">—</div>
+      <div class="score-grade" id="score-grade-0"></div>
+      <div class="score-bar-wrap"><div class="score-bar-fill" id="score-bar-fill-0"></div></div>
+      <div class="score-breakdown">
+        <div class="score-stat"><span class="val" style="color:var(--correct)" id="s-correct-0">—</span><span class="lbl">Correct</span></div>
+        <div class="score-stat"><span class="val" style="color:var(--wrong)" id="s-wrong-0">—</span><span class="lbl">Wrong</span></div>
+        <div class="score-stat"><span class="val" style="color:var(--text-muted)" id="s-pct-0">—</span><span class="lbl">Score %</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════
+     CASE STUDY 2
+════════════════════════════ -->
+<section class="case-panel" id="panel-1">
+
+  <div class="case-card">
+    <div class="case-card-header">
+      <div class="case-number">CASE 02</div>
+      <div class="case-card-header-text">
+        <h2>Digital Evidence Classification &amp; Data Acquisition</h2>
+        <div class="topic-tag">Topics: Evidence Types · Acquisition Methods · Chain of Custody · Volatile Data · Write Blockers</div>
+      </div>
+    </div>
+    <div class="case-body">
+      <p>A company reports that confidential files were stolen from its office. Investigators arrive on scene and must classify the evidence they find, choose appropriate acquisition methods, and ensure that every piece of evidence is properly preserved for court.</p>
+
+      <table class="evidence-table">
+        <tr><th>Evidence Found</th><th>Classification</th></tr>
+        <tr><td>A damaged office door</td><td>Physical Evidence</td></tr>
+        <tr><td>The employee's laptop (powered on)</td><td>Real Evidence + Volatile Data</td></tr>
+        <tr><td>An email warning about suspicious activity</td><td>Documentary Evidence</td></tr>
+        <tr><td>Login logs, CCTV footage, file access records</td><td>Digital Evidence</td></tr>
+        <tr><td>CCTV showing employee entering at midnight</td><td>Direct Evidence</td></tr>
+        <tr><td>Browser history — searches on file copying</td><td>Indirect/Circumstantial Evidence</td></tr>
+      </table>
+
+      <div class="case-highlight">
+        "The most important category in digital forensics is digital evidence, but the strongest investigations combine multiple evidence types together. When a laptop is still powered on, investigators must first photograph the screen and capture RAM before making any shutdown decision."
+      </div>
+
+      <p>This case study covers the full data acquisition process: how investigators image drives (physical, logical, file-system, and live acquisition), why write blockers are essential, how hash values prove integrity, and what the order of volatility means for live systems. Understanding these principles is critical to producing court-admissible evidence.</p>
+    </div>
+  </div>
+
+  <div class="questions-section">
+    <div class="progress-label">
+      <span>QUESTIONS — CASE STUDY 02</span>
+      <span id="prog-label-1">0 / 20 answered</span>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog-bar-1"></div></div>
+
+    <div id="questions-1"></div>
+
+    <div class="submit-area">
+      <button class="btn-check" onclick="openModal(1)">🔐 Check Results</button>
+      <button class="btn-reset" onclick="resetQuiz(1)">↺ Reset</button>
+    </div>
+    <div class="unanswered-warning" id="warn-1">⚠ Please answer all 20 questions before checking results.</div>
+    <div class="score-card" id="score-card-1">
+      <h3>📊 Case Study 02 — Results</h3>
+      <div class="score-big" id="score-big-1">—</div>
+      <div class="score-grade" id="score-grade-1"></div>
+      <div class="score-bar-wrap"><div class="score-bar-fill" id="score-bar-fill-1"></div></div>
+      <div class="score-breakdown">
+        <div class="score-stat"><span class="val" style="color:var(--correct)" id="s-correct-1">—</span><span class="lbl">Correct</span></div>
+        <div class="score-stat"><span class="val" style="color:var(--wrong)" id="s-wrong-1">—</span><span class="lbl">Wrong</span></div>
+        <div class="score-stat"><span class="val" style="color:var(--text-muted)" id="s-pct-1">—</span><span class="lbl">Score %</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════
+     CASE STUDY 3
+════════════════════════════ -->
+<section class="case-panel" id="panel-2">
+
+  <div class="case-card">
+    <div class="case-card-header">
+      <div class="case-number">CASE 03</div>
+      <div class="case-card-header-text">
+        <h2>Operation DataBreach — NovaTech Solutions Pty Ltd</h2>
+        <div class="topic-tag">Topics: Investigation Phases · Legal Framework · Chain of Custody · Insider Threat · Australian Law</div>
+      </div>
+    </div>
+    <div class="case-body">
+      <p><strong style="color:var(--text)">NovaTech Solutions Pty Ltd</strong> is a Brisbane-based software company with 120 employees. On <strong style="color:var(--gold)">10 March 2026</strong>, the Head of IT Security flagged a DLP alert: user account <code style="background:rgba(255,255,255,0.07); padding:2px 6px; border-radius:3px; font-family:'IBM Plex Mono',monospace; font-size:13px">jthompson</code> had accessed 847 files on the file server between <strong style="color:var(--gold)">22:00 and 23:45</strong> — outside business hours.</p>
+      <p>James Thompson, a Senior Software Engineer serving his notice period, was suspected of exfiltrating proprietary source code before resigning. CyberTrace Forensics was engaged to conduct an independent investigation across nine structured phases.</p>
+      <div class="case-highlight">
+        "The investigation was authorised under written consent from NovaTech as device owner, Section 477.1 of the Criminal Code Act 1995 (Cth), and the company's signed Acceptable Use Policy. No AFP warrant was issued — this was a civil/corporate investigation."
+      </div>
+      <table class="evidence-table">
+        <tr><th>Evidence Item</th><th>Description</th><th>Location</th></tr>
+        <tr><td>E-001</td><td>Desktop PC — Dell OptiPlex 7090</td><td>Desk 14, powered off</td></tr>
+        <tr><td>E-002</td><td>Laptop — Lenovo ThinkPad T490</td><td>Lid closed, possibly in sleep</td></tr>
+        <tr><td>E-003</td><td>32 GB SanDisk USB drive</td><td>Desk drawer, unlabelled</td></tr>
+        <tr><td>E-004</td><td>DLP system alert logs</td><td>Server NOVA-DLP-01</td></tr>
+        <tr><td>E-005</td><td>Active Directory / Windows Event Logs</td><td>Domain controller NOVA-DC-01</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="questions-section">
+    <div class="progress-label">
+      <span>QUESTIONS — CASE STUDY 03</span>
+      <span id="prog-label-2">0 / 20 answered</span>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog-bar-2"></div></div>
+
+    <div id="questions-2"></div>
+
+    <div class="submit-area">
+      <button class="btn-check" onclick="openModal(2)">🔐 Check Results</button>
+      <button class="btn-reset" onclick="resetQuiz(2)">↺ Reset</button>
+    </div>
+    <div class="unanswered-warning" id="warn-2">⚠ Please answer all 20 questions before checking results.</div>
+    <div class="score-card" id="score-card-2">
+      <h3>📊 Case Study 03 — Results</h3>
+      <div class="score-big" id="score-big-2">—</div>
+      <div class="score-grade" id="score-grade-2"></div>
+      <div class="score-bar-wrap"><div class="score-bar-fill" id="score-bar-fill-2"></div></div>
+      <div class="score-breakdown">
+        <div class="score-stat"><span class="val" style="color:var(--correct)" id="s-correct-2">—</span><span class="lbl">Correct</span></div>
+        <div class="score-stat"><span class="val" style="color:var(--wrong)" id="s-wrong-2">—</span><span class="lbl">Wrong</span></div>
+        <div class="score-stat"><span class="val" style="color:var(--text-muted)" id="s-pct-2">—</span><span class="lbl">Score %</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ── PASSWORD MODAL ── -->
+<div class="modal-overlay" id="pwModal">
+  <div class="modal-box">
+    <div class="modal-icon">🔒</div>
+    <h3>Enter Instructor Password</h3>
+    <p>Results are protected. Enter the password provided by your instructor to reveal correct answers and your score.</p>
+    <input type="password" class="modal-input" id="pwInput" placeholder="••••••••••••••" maxlength="40" autocomplete="off" />
+    <div class="modal-error" id="pwError"></div>
+    <button class="btn-modal-submit" onclick="verifyPassword()">Unlock Results</button>
+    <button class="btn-modal-cancel" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<footer class="site-footer">
+  Digital Forensics Investigations · Educational Assessment · All scenarios are hypothetical
+</footer>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   QUESTION DATA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const QUIZ_DATA = [
+
+// ── CASE STUDY 1 ──
+[
+  {
+    q: "What was the FIRST action the suspect took during the three-day data leakage operation in the NIST case?",
+    opts: ["Connected an authorised USB drive to the workstation","Downloaded and installed the Eraser secure-deletion tool","Burned confidential files onto a CD-R disc","Searched the web for data-leakage methods and anti-forensic techniques"],
+    ans: 3,
+    exp: "The suspect began by researching data-leakage methods, anti-forensics, Windows artefacts, and detection bypass techniques — this is documented as the first phase of the operation."
+  },
+  {
+    q: "Which tool is considered the gold standard for RAM and memory forensics analysis?",
+    opts: ["FTK Imager","Autopsy / The Sleuth Kit","Volatility","Wireshark"],
+    ans: 2,
+    exp: "Volatility is described as 'the gold standard for RAM/memory forensics' — it can extract processes, network connections, registry hives, passwords, and malware artefacts from memory dumps."
+  },
+  {
+    q: "In the five-stage forensic worksheet model, which stage requires logging all actions, recording tool names/versions, and taking screenshots?",
+    opts: ["Identification","Preservation","Analysis","Documentation"],
+    ans: 3,
+    exp: "The Documentation stage explicitly asks: Were all actions logged? Were tool names and versions recorded? Were screenshots taken? Are timestamps included? Can another examiner repeat the work?"
+  },
+  {
+    q: "Which two anti-forensic tools were directly used by the suspect in the NIST data leakage case?",
+    opts: ["Volatility and Wireshark","CCleaner and Eraser","FTK Imager and EnCase","PhotoRec and Recuva"],
+    ans: 1,
+    exp: "CCleaner (system cleaner used as an anti-forensic measure) and Eraser (secure file deletion tool) were both directly used by the suspect in the NIST CFReDS case."
+  },
+  {
+    q: "What is the PRIMARY purpose of a write blocker in digital forensics?",
+    opts: ["To compress forensic images into E01 format","To prevent any writes to the source device during acquisition","To decrypt BitLocker-protected volumes","To recover files deleted from the recycle bin"],
+    ans: 1,
+    exp: "A write blocker allows reading from a device but prevents any writes to the source. Without it, attaching a drive to a computer may alter last-accessed timestamps, metadata, and logs."
+  },
+  {
+    q: "Which tool was used by INVESTIGATORS during the Preservation stage in the NIST case?",
+    opts: ["CCleaner","Google Drive","FTK Imager 3.4.0.1","Windows Explorer"],
+    ans: 2,
+    exp: "FTK Imager (versions 3.4.0.1 and 3.3.0.5) along with EnCase Imager were used by investigators during the Preservation stage to create forensic images."
+  },
+  {
+    q: "In the Stage 2 — Preservation worksheet, which question specifically addresses evidence INTEGRITY verification?",
+    opts: ["Was the device isolated from the network?","Was a hash recorded?","Was chain of custody started?","Was the device photographed before handling?"],
+    ans: 1,
+    exp: "The Preservation checklist asks 'Was a hash recorded?' — this is the integrity check that allows investigators to prove the image is an exact copy of the original."
+  },
+  {
+    q: "Which tool from Eric Zimmermann's free suite is specifically designed for analysing the NTFS Master File Table (MFT)?",
+    opts: ["Wireshark","IsoBuster","MFTECmd","MailXaminer"],
+    ans: 2,
+    exp: "MFTECmd is part of Eric Zimmermann's free Windows forensic tools and parses the NTFS Master File Table — which tracks every file created, modified, or deleted on an NTFS volume."
+  },
+  {
+    q: "Which Linux forensic distribution is maintained by SANS and comes pre-installed with Sleuth Kit, Volatility, and log2timeline?",
+    opts: ["CAINE","Paladin (Sumuri)","Tsurugi Linux","SANS SIFT Workstation"],
+    ans: 3,
+    exp: "The SANS SIFT Workstation is an Ubuntu-based forensic workstation built by SANS Institute. It includes Sleuth Kit, Volatility, log2timeline, and dozens of DFIR tools."
+  },
+  {
+    q: "What specific anti-forensic action did the suspect take with the SECOND USB drive (RM#2) in the NIST case?",
+    opts: ["Encrypted its contents using VeraCrypt","Quick-formatted the drive to hide the file transfer","Used Eraser to securely delete all files from it","Physically destroyed the drive by breaking it"],
+    ans: 1,
+    exp: "After copying files to the second USB (RM#2), the suspect quick-formatted that USB to hide evidence of the transfer — but the format operation itself leaves artefacts investigators can detect."
+  },
+  {
+    q: "Which tool reconstructs application-layer data such as emails, HTTP sessions, and VoIP calls from raw PCAP network captures?",
+    opts: ["NetworkMiner","Wireshark","Xplico","Volatility"],
+    ans: 2,
+    exp: "Xplico reconstructs application data (emails, HTTP, VoIP) from PCAP network captures. NetworkMiner also does session reconstruction but Xplico is specifically described for this purpose in the materials."
+  },
+  {
+    q: "In a forensic investigation workflow, what does a matching hash value between the source drive and the forensic image PROVE?",
+    opts: ["That the investigator holds a valid forensic certification","That the forensic image is an exact, unmodified copy of the source","That the device was not encrypted","That chain of custody was fully maintained throughout"],
+    ans: 1,
+    exp: "Hash matching (MD5 / SHA-256) proves that the forensic image is a bit-for-bit exact copy of the source evidence — any modification, even a single bit, would produce a completely different hash value."
+  },
+  {
+    q: "Which tool is most directly relevant to analysing the CD-R (RM#3) disc evidence in the NIST case?",
+    opts: ["PhotoRec","IsoBuster","FTK Imager","Recuva"],
+    ans: 1,
+    exp: "IsoBuster is specifically noted as 'Directly relevant to the CD-R (RM#3) in the NIST case' — it recovers data from CDs, DVDs, and Blu-rays including multisession discs and deleted UDF files."
+  },
+  {
+    q: "KAPE (Kroll Artifact Parser and Extractor) is primarily used for which forensic task?",
+    opts: ["Full RAM memory analysis","Network packet capture and protocol analysis","Fast triage collection of targeted forensic artefacts from live systems","Optical disc and CD/DVD recovery"],
+    ans: 2,
+    exp: "KAPE is a lightning-fast triage tool that collects targeted forensic artefacts (browsers, registry, event logs, prefetch) from live systems without imaging the whole drive."
+  },
+  {
+    q: "At the PRESENTATION stage of an investigation, what is the most critical question an investigator must be able to answer?",
+    opts: ["What systems and devices are involved?","What artefacts were found during analysis?","What happened — explained in plain English?","Was the device isolated before acquisition?"],
+    ans: 2,
+    exp: "The Presentation stage asks: What happened in plain English? What evidence supports this? How confident are we? The key is translating technical findings into clear, understandable narrative for court or management."
+  },
+  {
+    q: "Which two hash algorithms are most commonly paired for forensic image verification?",
+    opts: ["ROT13 and Base64","MD5 and SHA-256","AES-256 and RSA-2048","CRC32 and ZIP checksum"],
+    ans: 1,
+    exp: "MD5 and SHA-256 (or SHA-1) are the standard pair for forensic verification. MD5 is fast but considered weak against collisions; SHA-256 provides stronger integrity assurance."
+  },
+  {
+    q: "In the NIST data leakage case, the suspect used which cloud service as part of the exfiltration strategy?",
+    opts: ["Dropbox","Microsoft OneDrive","Google Drive","Box"],
+    ans: 2,
+    exp: "Google Drive was used by the suspect as part of the exfiltration process. Cloud-related activity was recorded in logs and browser history, providing investigators with another evidence trail."
+  },
+  {
+    q: "Which tool is described as the 'industry-standard' for packet capture and network traffic analysis in digital forensics?",
+    opts: ["NetworkMiner","Wireshark","Xplico","Volatility"],
+    ans: 1,
+    exp: "Wireshark is described as the 'industry-standard packet capture and analysis' tool — it inspects network traffic, protocols, and data transfers for evidence of exfiltration."
+  },
+  {
+    q: "ExifTool is used in digital forensics primarily to extract which type of information?",
+    opts: ["Network packet headers and IP addresses","Windows Registry keys and values","Metadata from images and documents including timestamps, GPS coordinates, and author info","RAM dumps and running process lists"],
+    ans: 2,
+    exp: "ExifTool extracts metadata from images, documents, PDFs, and videos — including timestamps, GPS coordinates, author names, and software used. This is useful for proving file origin and modification history."
+  },
+  {
+    q: "At the Analysis stage, investigators ask six key questions. Which of the following is NOT one of those six questions?",
+    opts: ["What artefacts were found?","Was a hash recorded?","What is the timeline?","Are there alternate explanations?"],
+    ans: 1,
+    exp: "'Was a hash recorded?' belongs to the Preservation stage checklist, not the Analysis stage. The Analysis stage asks about artefacts, timelines, supporting/contradicting evidence, alternate explanations, and unknown elements."
+  }
+],
+
+// ── CASE STUDY 2 ──
+[
+  {
+    q: "A CCTV recording that directly shows an employee copying files onto a USB drive is classified as which type of evidence?",
+    opts: ["Indirect (circumstantial) evidence","Documentary evidence","Direct evidence","Physical evidence"],
+    ans: 2,
+    exp: "Direct evidence proves a fact without needing inference. CCTV directly showing the act of copying files is a classic example of direct evidence — it directly supports the fact being investigated."
+  },
+  {
+    q: "Browser history showing an employee searched for 'how to copy files without detection' is an example of which evidence type?",
+    opts: ["Real evidence","Direct evidence","Documentary evidence","Indirect (circumstantial) evidence"],
+    ans: 3,
+    exp: "Indirect (circumstantial) evidence does not directly prove a fact but points to it through reasoning. Browser search history suggesting intent to hide file copying is circumstantial — it supports a pattern, not a direct act."
+  },
+  {
+    q: "Which type of data acquisition captures the ENTIRE storage medium bit-by-bit, including all deleted data and unallocated space?",
+    opts: ["Logical acquisition","File-system acquisition","Physical acquisition","Live acquisition"],
+    ans: 2,
+    exp: "Physical acquisition captures the entire storage medium at the raw bit level, including deleted data, slack space, and unallocated areas. It provides the most complete picture but produces the largest image files."
+  },
+  {
+    q: "A 32 GB USB drive seized from a suspect's desk — the actual physical drive itself — is classified as which evidence type?",
+    opts: ["Documentary evidence","Indirect evidence","Real evidence","Direct evidence"],
+    ans: 2,
+    exp: "Real evidence is the actual object directly involved in the event. The USB drive itself is real evidence — it is the original item directly linked to the case. It also contains digital evidence, but 'real evidence' is the most precise classification."
+  },
+  {
+    q: "According to the Order of Volatility, which data type must be collected FIRST because it disappears most quickly?",
+    opts: ["Temporary files on disk","Running processes","CPU / cache / register-level information","Disk/persistent storage"],
+    ans: 2,
+    exp: "CPU registers and cache are at the top of the Order of Volatility — they change with every clock cycle. Investigators must capture the most volatile data first: registers → RAM → network connections → processes → disk."
+  },
+  {
+    q: "Why is forensic IMAGING generally preferred over CLONING in digital forensics?",
+    opts: ["It creates a second physical drive as an exact duplicate","It is always faster than cloning","It is easier to preserve, hash, and document as a file","It does not require a write blocker to be used"],
+    ans: 2,
+    exp: "Imaging is preferred because it produces file-based copies (E01, DD) that can be stored, hashed, and verified. Cloning creates a second physical disk that is harder to verify and transport."
+  },
+  {
+    q: "Chain of custody documentation answers all of the following questions EXCEPT which one?",
+    opts: ["Who collected the evidence and when?","Has the integrity of the evidence been preserved?","What encryption algorithm was used on the device?","Who has accessed the evidence since collection?"],
+    ans: 2,
+    exp: "Chain of custody tracks who handled evidence, when, where, and how — it is a legal tracking log. What encryption was on the device is a technical finding from analysis, not a chain-of-custody record."
+  },
+  {
+    q: "Which acquisition method captures ONLY the files and folders visible through the operating system, without deleted data or raw disk areas?",
+    opts: ["Physical acquisition","Logical acquisition","File-system acquisition","Live acquisition"],
+    ans: 1,
+    exp: "Logical acquisition captures only files and folders accessible through the OS file system interface. It is fast and practical for live/cloud systems but misses deleted files and raw artefacts."
+  },
+  {
+    q: "An investigator arrives to find a suspect's fully encrypted laptop is powered off. What is the most likely challenge?",
+    opts: ["The laptop will automatically decrypt when connected to a write blocker","Only encrypted raw data will be available — largely unusable without the decryption key","The encryption can be bypassed automatically using FTK Imager","Live acquisition will recover all decrypted data despite the shutdown"],
+    ans: 1,
+    exp: "When an encrypted device is powered off, the decryption key is gone from memory. The investigator gets only encrypted raw data, which is largely unusable. This is why investigators sometimes avoid immediate shutdown of encrypted live systems."
+  },
+  {
+    q: "File carving recovers files based on which method?",
+    opts: ["File metadata and NTFS timestamps","Directory entries in the active file system","File signatures (magic bytes / headers) found in raw disk data","Windows Registry entries and MFT records"],
+    ans: 2,
+    exp: "File carving ignores the file system entirely and scans raw bytes for known file signatures (e.g., %PDF, JPEG FF D8 FF header). This is powerful when metadata is gone, but recovered files may lose their names, paths, and timestamps."
+  },
+  {
+    q: "According to the course materials, which tool is recommended as the best FREE disk imaging tool for Windows forensics?",
+    opts: ["Volatility","Autopsy","FTK Imager","Wireshark"],
+    ans: 2,
+    exp: "FTK Imager is listed as the recommended free tool for disk imaging in the Quick Reference. It is free, widely accepted in court, and supports E01, RAW/DD, and AFF formats with built-in hash verification."
+  },
+  {
+    q: "An email in which an employee admits to copying confidential files and sending them to a competitor is BEST classified as which evidence type(s)?",
+    opts: ["Physical evidence and real evidence","Real evidence only","Both direct evidence AND documentary evidence","Indirect evidence and circumstantial evidence"],
+    ans: 2,
+    exp: "An email admitting fraud is direct evidence (it directly proves the act, like a confession) AND documentary evidence (it is a recorded document used as proof). Both classifications apply and strengthen the case."
+  },
+  {
+    q: "What is the PRIMARY risk of performing live acquisition on a running system compared to static forensics?",
+    opts: ["It cannot capture any volatile data","Every interaction with the live system changes its state and may alter evidence","It requires a hardware write blocker which slows the process","It always destroys encryption keys stored in RAM"],
+    ans: 1,
+    exp: "Any interaction with a live system — running commands, attaching a USB, launching software — changes the system. Commands leave traces, timestamps change, and malware may react. Live acquisition must be very carefully documented."
+  },
+  {
+    q: "DumpIt is a memory acquisition tool for Windows. What makes it particularly convenient?",
+    opts: ["It performs full disk imaging with hash verification","It is a single-executable tool that captures a full RAM dump with one click","It analyses memory dumps using the Volatility framework","It performs both network capture and memory acquisition simultaneously"],
+    ans: 1,
+    exp: "DumpIt is a single-executable Windows memory acquisition tool that captures a full physical RAM dump with one click. Its simplicity makes it ideal for rapid incident-response memory collection."
+  },
+  {
+    q: "File-system-based recovery is MOST effective in which situation?",
+    opts: ["When the entire file system structure has been destroyed by formatting","When no file metadata remains and the drive has been overwritten","When metadata and deleted file entries are still present and not fully overwritten","When the device uses full-disk encryption like BitLocker"],
+    ans: 2,
+    exp: "File-system recovery reads the file system's own structures (MFT, FAT table, inodes) to find filenames, deleted entries, timestamps, and locations. It works best when these structures are intact or only partially overwritten."
+  },
+  {
+    q: "Which forensic image format is most commonly used for forensic preservation and case documentation?",
+    opts: [".zip (compressed archive)","E01 (Expert Witness Format)","DOCX (Word document)","PDF/A (archival PDF)"],
+    ans: 1,
+    exp: "E01 (Expert Witness Format, developed by EnCase) is the most widely used forensic image format. It supports compression, hash verification, case metadata, and is accepted by courts and forensic tools worldwide."
+  },
+  {
+    q: "According to the course material, which evidence type is considered MOST important in a digital forensics investigation?",
+    opts: ["Physical evidence","Documentary evidence","Direct evidence","Digital evidence"],
+    ans: 3,
+    exp: "Digital evidence is described as 'the most important category in digital forensics' because modern crimes almost always leave a digital trail. It reveals actions, timelines, identities, communication, and system activity."
+  },
+  {
+    q: "A printed contract found near a suspect's workstation, used to prove an agreement, is classified as which evidence type?",
+    opts: ["Real evidence","Physical evidence","Documentary evidence","Digital evidence"],
+    ans: 2,
+    exp: "Documentary evidence includes written or recorded documents used as proof. A printed contract is documentary evidence — it helps prove communication, ownership, transactions, intent, or agreements."
+  },
+  {
+    q: "Which description BEST defines a hardware write blocker?",
+    opts: ["Software installed on the examiner's PC to mount drives in read-only mode","A physical device placed between the evidence drive and the examiner's machine that prevents writes","A command-line tool that removes write permissions from forensic images","An encryption device that locks the evidence drive to prevent tampering"],
+    ans: 1,
+    exp: "A hardware write blocker is a physical device (such as the Tableau USB Bridge T8-R2) placed between the evidence drive and the examiner's computer. It is considered the most trusted method — more reliable than software write blockers in court."
+  },
+  {
+    q: "RAM contents, running processes, active network connections, and logged-in sessions are all examples of what?",
+    opts: ["Persistent storage artefacts","Documentary evidence","Volatile data","File carving artefacts"],
+    ans: 2,
+    exp: "Volatile data exists only while the system is powered on. RAM contents, running processes, network connections, encryption keys, and logged-in sessions all disappear when the machine is shut down — they must be captured during live acquisition."
+  }
+],
+
+// ── CASE STUDY 3 ──
+[
+  {
+    q: "What specific system alert triggered the initial investigation at NovaTech Solutions?",
+    opts: ["A phone call from a competitor firm revealing the breach","James Thompson's resignation email mentioning proprietary code","A DLP system alert showing >500 files accessed in 60 minutes outside business hours","A firewall intrusion detection alert from the Palo Alto device"],
+    ans: 2,
+    exp: "The DLP (Data Loss Prevention) system generated an alert triggered by two conditions: a volume threshold exceeded (>500 files accessed in 60 minutes) and access occurring outside normal business hours (22:03–23:47)."
+  },
+  {
+    q: "Under which specific Australian law was the investigation potentially covered regarding UNAUTHORISED ACCESS to restricted data?",
+    opts: ["Privacy Act 1988 (Cth)","Evidence Act 1995 (Cth)","Section 477.1 of the Criminal Code Act 1995 (Cth)","Corporations Act 2001 (Cth) s183"],
+    ans: 2,
+    exp: "Section 477.1 of the Criminal Code Act 1995 (Cth) covers 'Unauthorised access to, or modification of, restricted data.' Section 478.1 covers unauthorised impairment of data. Both were referenced as legal authorities for the investigation."
+  },
+  {
+    q: "When investigators arrived, the laptop (E-002) was warm to the touch. What was the forensic significance of this observation?",
+    opts: ["The laptop had overheated and suffered hardware damage","Volatile memory (RAM) may still be present and recoverable","The hard drive had been physically destroyed using a degausser","The laptop was protected by BitLocker full-disk encryption"],
+    ans: 1,
+    exp: "Warmth indicated the laptop was recently used or still in sleep mode. This is forensically significant because volatile memory — including RAM contents, running processes, and potentially decryption keys — may still be recoverable."
+  },
+  {
+    q: "What was the case reference number assigned to the NovaTech DataBreach investigation?",
+    opts: ["NOVA-2026-031","ERF-2026-031","AFP-2026-031","DLP-2026-031"],
+    ans: 1,
+    exp: "The case was assigned reference number ERF-2026-031 by CyberTrace Forensics. This number appears throughout all case documentation, chain of custody records, and the forensic archive."
+  },
+  {
+    q: "Which Phase of the NovaTech investigation involves creating forensic images and computing hash values to verify integrity?",
+    opts: ["Phase 1 — Identification","Phase 2 — Preservation","Phase 4 — Examination","Phase 7 — Presentation"],
+    ans: 1,
+    exp: "Phase 2 — Preservation is where investigators isolate devices, use write blockers, create forensic images, and record hash values (MD5/SHA-256). This ensures evidence integrity before any analysis begins."
+  },
+  {
+    q: "The USB drive (E-003) was not registered in the NovaTech IT asset register. What did investigators infer from this?",
+    opts: ["It was standard company-issued equipment","It belonged to another employee who lost it","It was likely personally brought in by the suspect (James Thompson)","It was a police evidence bag from a prior incident"],
+    ans: 2,
+    exp: "Because the USB drive had no asset tag and was not in the IT asset register, investigators inferred it was personally brought in by Thompson — making it unregistered personal equipment used to exfiltrate company data."
+  },
+  {
+    q: "Windows Event ID 4624 records which type of system activity?",
+    opts: ["Object access (file open/read/write)","Successful user logon event","New process creation","Service start or stop event"],
+    ans: 1,
+    exp: "Windows Security Event ID 4624 records a successful account logon. In the NovaTech case, this event confirmed that jthompson's account was used to log on at 22:03 on 9 March 2026 — correlating with the DLP alert."
+  },
+  {
+    q: "Which Australian legal instrument specifically governs the ADMISSIBILITY of digital evidence and expert witness opinion in court?",
+    opts: ["Criminal Code Act 1995 (Cth)","Privacy Act 1988 (Cth)","Evidence Act 1995 (Cth)","Corporations Act 2001 (Cth) s183"],
+    ans: 2,
+    exp: "The Evidence Act 1995 (Cth) governs the admissibility of evidence, including digital evidence, and rules regarding expert opinion evidence in Australian federal courts — critical for ensuring forensic findings are usable in legal proceedings."
+  },
+  {
+    q: "Who was the Lead Investigator from CyberTrace Forensics assigned to the NovaTech DataBreach case?",
+    opts: ["Michael Okonkwo","James Thompson","Dr. Amara Singh (CFCE, EnCE)","Priya Nair"],
+    ans: 2,
+    exp: "Dr. Amara Singh (certified CFCE and EnCE) was the Lead Investigator from CyberTrace Forensics. Priya Nair was the Digital Forensic Technician supporting the investigation."
+  },
+  {
+    q: "Regarding scope of the NovaTech investigation, James Thompson's personal mobile phone was classified as:",
+    opts: ["Seized immediately under the company's Acceptable Use Policy","Out of scope unless James Thompson voluntarily surrendered it","Covered by the written authorisation from NovaTech as device owner","Imaged on-site using Cellebrite UFED during Phase 3"],
+    ans: 1,
+    exp: "The investigation scope explicitly excluded personal devices: 'Personal mobile phone, personal email accounts, home network — Out of Scope.' These could only be accessed with voluntary surrender or a separate AFP/court order."
+  },
+  {
+    q: "Which international standard referenced in the NovaTech case provides guidelines for the identification, collection, acquisition, and preservation of digital evidence?",
+    opts: ["NIST SP 800-86","ACPO Good Practice Guide v5","AS ISO/IEC 27037:2015","ISO 27001"],
+    ans: 2,
+    exp: "AS ISO/IEC 27037:2015 is the Australian/International standard for digital evidence handling — it covers guidelines for identification, collection, acquisition, and preservation of digital evidence, referenced in the NovaTech legal authority section."
+  },
+  {
+    q: "The NovaTech forensic archive (ERF-2026-031) was encrypted using which specific tool?",
+    opts: ["BitLocker (Windows built-in)","VeraCrypt container with dual-key access","TrueCrypt (legacy version)","AES Commander Pro"],
+    ans: 1,
+    exp: "The case archive was stored as a VeraCrypt container with dual-key access (Dr. Singh + Kenji Watanabe). VeraCrypt provides strong open-source encryption for securing sensitive case materials."
+  },
+  {
+    q: "Which phase of the NovaTech investigation focuses on correlating artefacts, building the full timeline, and determining exactly what data was exfiltrated?",
+    opts: ["Phase 1 — Identification","Phase 2 — Preservation","Phase 5 — Analysis","Phase 8 — Review"],
+    ans: 2,
+    exp: "Phase 5 — Analysis is where investigators correlate artefacts from all sources (event logs, DLP, USB history, email, cloud logs) to build the full timeline of events and determine what was exfiltrated and how."
+  },
+  {
+    q: "The NovaTech investigation was classified as what type of investigation at the time of the engagement?",
+    opts: ["A criminal investigation conducted under an Australian Federal Police warrant","A military intelligence and counter-espionage investigation","A civil/corporate investigation authorised by written company consent","A regulatory audit by the Australian Cyber Security Centre (ACSC)"],
+    ans: 2,
+    exp: "This was explicitly a civil/corporate investigation. The case notes state: 'No law enforcement warrant was issued at this stage. Any referral to the AFP would require separate authorisation.' The company's written consent was the legal authority."
+  },
+  {
+    q: "The DLP alert that triggered the investigation was based on which combination of threshold conditions?",
+    opts: ["Failed login attempts (>10) AND a USB device insertion event","Volume threshold exceeded (>500 files in 60 minutes) AND access outside business hours","Email forwarding to external addresses AND a VPN connection from overseas","Antivirus detection of malware AND process injection alert"],
+    ans: 1,
+    exp: "The DLP alert was triggered by two simultaneous conditions: the volume threshold (>500 files accessed in 60 minutes) AND access occurring outside normal business hours (22:03–23:47 on a weeknight)."
+  },
+  {
+    q: "How long must forensic case materials be retained according to the NovaTech case archive and evidence retention policy?",
+    opts: ["1 year","3 years","5 years","7 years"],
+    ans: 3,
+    exp: "The NovaTech case archive policy specifies a 7-year retention period — 'per Australian evidence and professional practice standards.' Digital logs, forensic images, and case files are all retained for this period."
+  },
+  {
+    q: "Windows Security Event ID 4663 records which type of system activity?",
+    opts: ["Successful user logon","New process was created","Object access — an attempt was made to access an object (e.g., file read/write)","A system service was started or stopped"],
+    ans: 2,
+    exp: "Event ID 4663 records 'An attempt was made to access an object' — this logs file read, write, delete, and execute access. In the NovaTech case, 4663 events showed jthompson accessing 847 files in the Projects directory."
+  },
+  {
+    q: "The Acceptable Use Policy (AUP) signed by James Thompson upon commencing employment was forensically significant because:",
+    opts: ["It served as a written confession to the data breach","It provided the legal basis for investigating company-owned assets without a warrant","It gave investigators unlimited access to Thompson's personal accounts","It contained the encryption credentials for his workstation"],
+    ans: 1,
+    exp: "The AUP, combined with NovaTech's IT Security Policy (both signed by Thompson), established that company assets are company property. This gave NovaTech the legal authority to authorise the investigation without requiring a police warrant."
+  },
+  {
+    q: "In the NovaTech investigation, which Phase involves delivering findings to non-technical stakeholders such as management and legal counsel in plain language?",
+    opts: ["Phase 4 — Examination","Phase 5 — Analysis","Phase 6 — Documentation","Phase 7 — Presentation"],
+    ans: 3,
+    exp: "Phase 7 — Presentation is where investigators communicate findings to non-technical audiences including management, legal counsel, and if required, a court. The goal is to explain complex technical findings in clear, accessible language."
+  },
+  {
+    q: "Under the Evidence Act 1995 (Cth), why is the documentation of the forensic examination methodology particularly important?",
+    opts: ["It determines the maximum sentence the court can impose","It governs admissibility of digital evidence and the acceptance of expert opinion in Australian courts","It defines the privacy rights of the accused employee during the investigation","It sets the regulations for network monitoring in Australian workplaces"],
+    ans: 1,
+    exp: "The Evidence Act 1995 (Cth) governs how evidence must be obtained and presented to be admissible in court, including rules around expert witnesses and opinion evidence. Proper methodology documentation ensures forensic findings survive legal challenge."
+  }
+]
+
+]; // end QUIZ_DATA
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   SHA-256 PASSWORD HASH
+//   Password: ForensicsPass2026
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const STORED_HASH = "7048fad148bd9c53e98afe2aae5484657fcb04931362e81b6b9fd792ec70bc24";
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let currentTab = 0;
+let pendingCase = null;
+let revealed = [false, false, false];
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   BUILD QUESTIONS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function buildQuestions(caseIdx) {
+  const container = document.getElementById(`questions-${caseIdx}`);
+  const data = QUIZ_DATA[caseIdx];
+  const letters = ['A','B','C','D'];
+
+  data.forEach((item, qi) => {
+    const block = document.createElement('div');
+    block.className = 'question-block';
+    block.id = `q-${caseIdx}-${qi}`;
+
+    let optionsHTML = item.opts.map((opt, oi) => `
+      <label class="option-label" id="opt-${caseIdx}-${qi}-${oi}">
+        <input type="radio" name="q-${caseIdx}-${qi}" value="${oi}" onchange="onAnswer(${caseIdx},${qi})" />
+        <span class="option-letter">${letters[oi]}</span>
+        <span>${opt}</span>
+      </label>`).join('');
+
+    block.innerHTML = `
+      <div class="question-num">Question ${qi + 1} of 20</div>
+      <div class="question-text">${item.q}</div>
+      <div class="options">${optionsHTML}</div>
+      <div class="result-explanation" id="exp-${caseIdx}-${qi}"></div>
+    `;
+    container.appendChild(block);
+  });
+}
+
+[0,1,2].forEach(buildQuestions);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   ANSWER TRACKING
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function onAnswer(caseIdx, qIdx) {
+  const block = document.getElementById(`q-${caseIdx}-${qIdx}`);
+  block.classList.add('answered');
+  updateProgress(caseIdx);
+}
+
+function updateProgress(caseIdx) {
+  const data = QUIZ_DATA[caseIdx];
+  let answered = 0;
+  data.forEach((_, qi) => {
+    const sel = document.querySelector(`input[name="q-${caseIdx}-${qi}"]:checked`);
+    if (sel) answered++;
+  });
+  const pct = (answered / data.length) * 100;
+  document.getElementById(`prog-bar-${caseIdx}`).style.width = pct + '%';
+  document.getElementById(`prog-label-${caseIdx}`).textContent = `${answered} / ${data.length} answered`;
+}
+
+function getAnswers(caseIdx) {
+  return QUIZ_DATA[caseIdx].map((_, qi) => {
+    const sel = document.querySelector(`input[name="q-${caseIdx}-${qi}"]:checked`);
+    return sel ? parseInt(sel.value) : null;
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   TAB SWITCHING
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function switchTab(idx) {
+  document.querySelectorAll('.case-panel').forEach((p,i) => p.classList.toggle('active', i===idx));
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  currentTab = idx;
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   MODAL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function openModal(caseIdx) {
+  const answers = getAnswers(caseIdx);
+  if (answers.some(a => a === null)) {
+    const w = document.getElementById(`warn-${caseIdx}`);
+    w.style.display = 'block';
+    setTimeout(() => w.style.display = 'none', 4000);
+    return;
+  }
+  pendingCase = caseIdx;
+  document.getElementById('pwInput').value = '';
+  document.getElementById('pwError').textContent = '';
+  document.getElementById('pwInput').classList.remove('error');
+  document.getElementById('pwModal').classList.add('open');
+  setTimeout(() => document.getElementById('pwInput').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('pwModal').classList.remove('open');
+  pendingCase = null;
+}
+
+document.getElementById('pwModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('pwModal')) closeModal();
+});
+
+document.getElementById('pwInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') verifyPassword();
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   PASSWORD VERIFICATION (SHA-256)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function sha256(message) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function verifyPassword() {
+  const input = document.getElementById('pwInput');
+  const errEl = document.getElementById('pwError');
+  const pw = input.value.trim();
+  if (!pw) { errEl.textContent = 'Please enter the password.'; return; }
+
+  const hash = await sha256(pw);
+
+  if (hash === STORED_HASH) {
+    const caseIdx = pendingCase;
+    closeModal();
+    if (caseIdx !== null) revealResults(caseIdx);
+  } else {
+    input.classList.add('error');
+    errEl.textContent = 'Incorrect password. Please try again.';
+    input.value = '';
+    setTimeout(() => input.classList.remove('error'), 400);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   REVEAL RESULTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function revealResults(caseIdx) {
+  if (revealed[caseIdx]) return;
+  revealed[caseIdx] = true;
+
+  const data = QUIZ_DATA[caseIdx];
+  const answers = getAnswers(caseIdx);
+  let correct = 0;
+
+  data.forEach((item, qi) => {
+    const block = document.getElementById(`q-${caseIdx}-${qi}`);
+    const selected = answers[qi];
+    const isCorrect = selected === item.ans;
+    if (isCorrect) correct++;
+
+    // Mark question block
+    block.classList.add(isCorrect ? 'result-correct' : 'result-wrong');
+
+    // Mark options
+    item.opts.forEach((_, oi) => {
+      const lbl = document.getElementById(`opt-${caseIdx}-${qi}-${oi}`);
+      if (oi === item.ans) lbl.classList.add('is-correct');
+      else if (oi === selected && !isCorrect) lbl.classList.add('is-wrong-selected');
+    });
+
+    // Show explanation
+    const expEl = document.getElementById(`exp-${caseIdx}-${qi}`);
+    expEl.className = `result-explanation ${isCorrect ? 'exp-correct' : 'exp-wrong'}`;
+    expEl.textContent = (isCorrect ? '✓ Correct — ' : '✗ Incorrect — ') + item.exp;
+
+    // Make options unclickable
+    document.querySelectorAll(`input[name="q-${caseIdx}-${qi}"]`).forEach(r => r.disabled = true);
+  });
+
+  // Apply results-shown class to force CSS
+  document.querySelectorAll(`#panel-${caseIdx} .question-block`).forEach(b => b.classList.add('results-shown'));
+  document.querySelectorAll(`#panel-${caseIdx} .options`).forEach(o => o.classList.add('results-shown'));
+
+  // Show score card
+  const pct = Math.round((correct / data.length) * 100);
+  const card = document.getElementById(`score-card-${caseIdx}`);
+  card.classList.add('visible');
+  document.getElementById(`score-big-${caseIdx}`).innerHTML = `${correct}<span>/${data.length}</span>`;
+  document.getElementById(`s-correct-${caseIdx}`).textContent = correct;
+  document.getElementById(`s-wrong-${caseIdx}`).textContent = data.length - correct;
+  document.getElementById(`s-pct-${caseIdx}`).textContent = pct + '%';
+
+  const fill = document.getElementById(`score-bar-fill-${caseIdx}`);
+  const gradeEl = document.getElementById(`score-grade-${caseIdx}`);
+
+  let grade, gradeColor;
+  if (pct >= 85) { grade = '🏆 Distinction'; gradeColor = 'var(--gold)'; }
+  else if (pct >= 70) { grade = '✅ Credit'; gradeColor = 'var(--correct)'; }
+  else if (pct >= 50) { grade = '📘 Pass'; gradeColor = 'var(--accent)'; }
+  else { grade = '📖 Needs Revision'; gradeColor = 'var(--wrong)'; }
+
+  gradeEl.textContent = grade;
+  gradeEl.style.color = gradeColor;
+  fill.style.background = gradeColor;
+  setTimeout(() => fill.style.width = pct + '%', 100);
+
+  // Update tab badge
+  const badge = document.getElementById(`tab-score-${caseIdx}`);
+  badge.textContent = `${pct}%`;
+  badge.classList.add('visible');
+
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   RESET QUIZ
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function resetQuiz(caseIdx) {
+  if (!confirm('Reset all answers for this case study?')) return;
+  revealed[caseIdx] = false;
+  const data = QUIZ_DATA[caseIdx];
+
+  data.forEach((_, qi) => {
+    const block = document.getElementById(`q-${caseIdx}-${qi}`);
+    block.className = 'question-block';
+    document.querySelectorAll(`input[name="q-${caseIdx}-${qi}"]`).forEach(r => {
+      r.checked = false;
+      r.disabled = false;
+    });
+    data[qi].opts.forEach((__, oi) => {
+      const lbl = document.getElementById(`opt-${caseIdx}-${qi}-${oi}`);
+      lbl.className = 'option-label';
+    });
+    const expEl = document.getElementById(`exp-${caseIdx}-${qi}`);
+    expEl.className = 'result-explanation';
+    expEl.textContent = '';
+  });
+
+  document.getElementById(`prog-bar-${caseIdx}`).style.width = '0%';
+  document.getElementById(`prog-label-${caseIdx}`).textContent = `0 / ${data.length} answered`;
+  document.getElementById(`score-card-${caseIdx}`).classList.remove('visible');
+  document.getElementById(`tab-score-${caseIdx}`).classList.remove('visible');
+  document.getElementById(`score-bar-fill-${caseIdx}`).style.width = '0%';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
