@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>File System Visualizer — FAT, NTFS, ext4</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121933;
+      --panel-2: #182247;
+      --text: #eaf0ff;
+      --muted: #aeb8d8;
+      --line: #2a376e;
+      --accent: #7dd3fc;
+      --ok: #86efac;
+      --warn: #fcd34d;
+      --danger: #fca5a5;
+      --active: #c4b5fd;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: linear-gradient(180deg, #09101f, #0d1430 55%, #0b1020);
+      color: var(--text);
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+      padding: 18px;
+      background: rgba(10, 14, 28, 0.92);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+    }
+
+    .main {
+      padding: 18px;
+    }
+
+    h1, h2, h3 { margin: 0 0 10px; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; color: var(--accent); }
+    p, li, label, button, select, option, .small { line-height: 1.45; }
+
+    .card {
+      background: rgba(18, 25, 51, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+    }
+
+    select, button, input[type="range"] {
+      width: 100%;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+
+    button {
+      cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      font-size: 12px;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .viz-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1.1fr 1.4fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .blocks {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(66px, 1fr));
+      gap: 8px;
+    }
+
+    .block {
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      padding: 10px 8px;
+      min-height: 68px;
+      background: rgba(255,255,255,0.03);
+      position: relative;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .block strong {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .block small {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .free { background: rgba(255,255,255,0.02); }
+    .occupied { background: rgba(125, 211, 252, 0.12); }
+    .metadata { background: rgba(252, 211, 77, 0.12); }
+    .journal { background: rgba(134, 239, 172, 0.14); }
+    .security { background: rgba(252, 165, 165, 0.14); }
+    .active {
+      transform: scale(1.04);
+      border-color: var(--active);
+      box-shadow: 0 0 0 2px rgba(196,181,253,0.25), 0 10px 20px rgba(0,0,0,0.22);
+    }
+    .changed {
+      border-color: var(--ok);
+      box-shadow: 0 0 0 2px rgba(134,239,172,0.2);
+    }
+
+    .table-like {
+      display: grid;
+      gap: 8px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+    }
+
+    .row .label { color: var(--muted); font-size: 12px; }
+    .row .value { font-size: 13px; }
+
+    .fat-table-entry, .mft-entry, .inode-entry, .dir-entry {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(255,255,255,0.03);
+      margin-bottom: 8px;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .highlight-entry {
+      border-color: var(--active);
+      box-shadow: 0 0 0 2px rgba(196,181,253,0.18);
+    }
+
+    .log {
+      max-height: 280px;
+      overflow: auto;
+      display: grid;
+      gap: 8px;
+    }
+
+    .log-item {
+      border-left: 3px solid var(--accent);
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .explain {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .badge-ok, .badge-no, .badge-mid {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+    .badge-ok { background: rgba(134,239,172,.16); color: var(--ok); }
+    .badge-no { background: rgba(252,165,165,.16); color: var(--danger); }
+    .badge-mid { background: rgba(252,211,77,.16); color: var(--warn); }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; }
+      .viz-grid { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h1>File System Visualizer</h1>
+      <p class="explain">
+        Interactive simulation of how <strong>FAT</strong>, <strong>NTFS</strong>, and <strong>ext4</strong> organize, read, and write five files.
+        Pick a file system, then run <strong>Read</strong> or <strong>Write</strong> to see metadata, block traversal, journaling, and security behavior.
+      </p>
+
+      <div class="card controls">
+        <div>
+          <label for="fsSelect">File system</label>
+          <select id="fsSelect">
+            <option value="fat">FAT32</option>
+            <option value="ntfs">NTFS</option>
+            <option value="ext4">ext4</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="fileSelect">Sample file</label>
+          <select id="fileSelect"></select>
+        </div>
+
+        <div>
+          <label for="speed">Animation speed</label>
+          <input type="range" id="speed" min="250" max="1200" step="50" value="650" />
+        </div>
+
+        <button id="readBtn">Read file</button>
+        <button id="writeBtn">Write to file</button>
+        <button id="resetBtn">Reset simulation</button>
+      </div>
+
+      <div class="card">
+        <h2>What this shows</h2>
+        <div id="fsDescription" class="explain"></div>
+      </div>
+
+      <div class="card">
+        <h2>Feature summary</h2>
+        <div id="featureBadges"></div>
+        <p class="footer-note">
+          Accuracy note: FAT is shown without native journaling or advanced ACL-based security because those are typical strengths of NTFS, while ext4 uses Linux-style permissions and journaling.
+        </p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="grid-2">
+        <section class="card">
+          <h2>Current action</h2>
+          <div id="statusText" class="explain">Choose a file system and click Read or Write.</div>
+          <div class="legend">
+            <div class="legend-item"><span class="dot" style="background: rgba(255,255,255,0.06)"></span> Free block</div>
+            <div class="legend-item"><span class="dot" style="background: rgba(125, 211, 252, 0.4)"></span> File data</div>
+            <div class="legend-item"><span class="dot" style="background: rgba(252, 211, 77, 0.45)"></span> Metadata</div>
+            <div class="legend-item"><span class="dot" style="background: rgba(134, 239, 172, 0.45)"></span> Journal / log</div>
+            <div class="legend-item"><span class="dot" style="background: rgba(252, 165, 165, 0.45)"></span> Security / permissions</div>
+            <div class="legend-item"><span class="dot" style="background: rgba(196,181,253,0.55)"></span> Active step</div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Sample files</h2>
+          <div id="fileSummary" class="table-like"></div>
+        </section>
+      </div>
+
+      <section class="viz-grid">
+        <div class="stack">
+          <div class="card">
+            <h2>Directories / metadata</h2>
+            <div id="metadataPane"></div>
+          </div>
+
+          <div class="card">
+            <h2>System components</h2>
+            <div id="componentsPane"></div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <h2>Storage blocks / clusters</h2>
+            <div id="blocksPane" class="blocks"></div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <h2>Event log</h2>
+            <div id="logPane" class="log"></div>
+          </div>
+
+          <div class="card">
+            <h2>How this file system works</h2>
+            <div id="deepExplanation" class="explain"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const sampleFiles = [
+      { id: 'F1', name: 'report.docx', blocks: [2, 6, 10], size: '78 KB', acl: 'Faculty, Owner', contentTag: 'Office document' },
+      { id: 'F2', name: 'notes.txt', blocks: [3, 4], size: '4 KB', acl: 'Everyone, Owner', contentTag: 'Plain text' },
+      { id: 'F3', name: 'photo.jpg', blocks: [7, 11, 12], size: '2.1 MB', acl: 'Owner', contentTag: 'Image' },
+      { id: 'F4', name: 'thesis.pdf', blocks: [5, 9, 13, 14], size: '1.7 MB', acl: 'Research group', contentTag: 'PDF' },
+      { id: 'F5', name: 'data.csv', blocks: [8, 15], size: '120 KB', acl: 'Lab, Owner', contentTag: 'CSV' }
+    ];
+
+    const freeBlocksBase = [16, 17, 18, 19, 20];
+
+    const fsInfo = {
+      fat: {
+        label: 'FAT32',
+        description: 'FAT keeps a directory entry for each file and uses a File Allocation Table to point from one cluster to the next. It is simple and broadly compatible, but it does not have native journaling or rich ACL-based security.',
+        deep: 'On a read, the system looks up the directory entry, finds the start cluster, then follows the FAT chain cluster by cluster until it reaches end-of-file. On a write, a new free cluster is allocated, the FAT chain is extended, the directory metadata is updated, and no journal replay structure is available if a crash occurs during the update. This makes FAT easy to understand, but less resilient than NTFS or ext4.',
+        features: { journaling: false, security: false, compatibility: 'High', metadata: 'Simple' }
+      },
+      ntfs: {
+        label: 'NTFS',
+        description: 'NTFS stores file metadata in the Master File Table (MFT), tracks updates with a journal ($LogFile), and supports Windows security descriptors and ACLs. It is more complex but much more resilient and feature-rich.',
+        deep: 'On a read, NTFS resolves the file through its MFT record, checks attributes and run lists, and fetches the referenced clusters. On a write, NTFS first records intent in the journal, updates metadata and allocation structures, appends or rewrites data clusters, then commits the journal record. This model supports recovery after interruptions and preserves detailed security and metadata information.',
+        features: { journaling: true, security: true, compatibility: 'Windows-focused', metadata: 'Rich' }
+      },
+      ext4: {
+        label: 'ext4',
+        description: 'ext4 uses directories, inodes, and extents to map files to storage blocks. It includes journaling for consistency and Linux-style ownership and permissions. It is efficient and scalable in Linux environments.',
+        deep: 'On a read, ext4 resolves the filename to an inode, then uses inode pointers or extents to locate file blocks. On a write, ext4 typically journals metadata changes, updates the inode and extent mapping, allocates a free block, and then exposes the committed state. This gives ext4 strong consistency while keeping large-file storage efficient.',
+        features: { journaling: true, security: true, compatibility: 'Linux-focused', metadata: 'Inode + extent' }
+      }
+    };
+
+    const state = {
+      fs: 'fat',
+      selectedFileId: 'F1',
+      files: JSON.parse(JSON.stringify(sampleFiles)),
+      freeBlocks: [...freeBlocksBase],
+      running: false
+    };
+
+    const els = {
+      fsSelect: document.getElementById('fsSelect'),
+      fileSelect: document.getElementById('fileSelect'),
+      speed: document.getElementById('speed'),
+      readBtn: document.getElementById('readBtn'),
+      writeBtn: document.getElementById('writeBtn'),
+      resetBtn: document.getElementById('resetBtn'),
+      fsDescription: document.getElementById('fsDescription'),
+      featureBadges: document.getElementById('featureBadges'),
+      statusText: document.getElementById('statusText'),
+      fileSummary: document.getElementById('fileSummary'),
+      metadataPane: document.getElementById('metadataPane'),
+      componentsPane: document.getElementById('componentsPane'),
+      blocksPane: document.getElementById('blocksPane'),
+      logPane: document.getElementById('logPane'),
+      deepExplanation: document.getElementById('deepExplanation')
+    };
+
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function getSpeed() {
+      return Number(els.speed.value);
+    }
+
+    function getSelectedFile() {
+      return state.files.find(f => f.id === state.selectedFileId);
+    }
+
+    function resetState() {
+      state.files = JSON.parse(JSON.stringify(sampleFiles));
+      state.freeBlocks = [...freeBlocksBase];
+      render();
+      clearLog();
+      setStatus('Simulation reset. Choose Read or Write.');
+    }
+
+    function setStatus(text) {
+      els.statusText.textContent = text;
+    }
+
+    function log(text) {
+      const div = document.createElement('div');
+      div.className = 'log-item';
+      div.textContent = text;
+      els.logPane.prepend(div);
+    }
+
+    function clearLog() {
+      els.logPane.innerHTML = '';
+    }
+
+    function renderFileSelect() {
+      els.fileSelect.innerHTML = state.files.map(f =>
+        `<option value="${f.id}" ${f.id === state.selectedFileId ? 'selected' : ''}>${f.name}</option>`
+      ).join('');
+    }
+
+    function renderSummary() {
+      els.fileSummary.innerHTML = state.files.map(f => `
+        <div class="row">
+          <div class="label">${f.id}</div>
+          <div class="value"><strong>${f.name}</strong> — ${f.size} — ${f.contentTag}<br><span class="small">Blocks: ${f.blocks.join(' → ')}</span></div>
+        </div>
+      `).join('');
+    }
+
+    function renderFeatureBadges() {
+      const info = fsInfo[state.fs];
+      els.featureBadges.innerHTML = `
+        <span class="pill">${info.label}</span>
+        <span class="pill">Journaling ${info.features.journaling ? '<span class="badge-ok">Yes</span>' : '<span class="badge-no">No</span>'}</span>
+        <span class="pill">Security ${info.features.security ? '<span class="badge-ok">Yes</span>' : '<span class="badge-no">Limited</span>'}</span>
+        <span class="pill">Compatibility <span class="badge-mid">${info.features.compatibility}</span></span>
+        <span class="pill">Metadata <span class="badge-mid">${info.features.metadata}</span></span>
+      `;
+    }
+
+    function renderBlocks(activeBlocks = [], changedBlocks = []) {
+      const occupiedMap = new Map();
+      state.files.forEach(f => f.blocks.forEach(b => occupiedMap.set(b, f.id)));
+
+      const metaBlocksByFs = {
+        fat: [{ n: 0, label: 'Boot', type: 'metadata' }, { n: 1, label: 'FAT', type: 'metadata' }],
+        ntfs: [{ n: 0, label: '$Boot', type: 'metadata' }, { n: 1, label: '$MFT', type: 'metadata' }],
+        ext4: [{ n: 0, label: 'Superblock', type: 'metadata' }, { n: 1, label: 'Group Desc', type: 'metadata' }]
+      };
+
+      const specialByFs = {
+        fat: [{ n: 21, label: 'Dir', type: 'metadata' }],
+        ntfs: [{ n: 21, label: '$LogFile', type: 'journal' }, { n: 22, label: 'ACL Meta', type: 'security' }],
+        ext4: [{ n: 21, label: 'Journal', type: 'journal' }, { n: 22, label: 'Permissions', type: 'security' }]
+      };
+
+      const all = [];
+      for (let i = 0; i <= 22; i++) {
+        const meta = metaBlocksByFs[state.fs].find(x => x.n === i) || specialByFs[state.fs].find(x => x.n === i);
+        if (meta) {
+          all.push({ n: i, label: meta.label, type: meta.type, text: meta.label });
+        } else if (occupiedMap.has(i)) {
+          all.push({ n: i, label: occupiedMap.get(i), type: 'occupied', text: `Owned by ${occupiedMap.get(i)}` });
+        } else {
+          all.push({ n: i, label: 'Free', type: 'free', text: 'Available block' });
+        }
+      }
+
+      els.blocksPane.innerHTML = all.map(b => `
+        <div id="block-${b.n}" class="block ${b.type} ${activeBlocks.includes(b.n) ? 'active' : ''} ${changedBlocks.includes(b.n) ? 'changed' : ''}">
+          <strong>Block ${b.n}</strong>
+          <small>${b.label}</small>
+          <small>${b.text}</small>
+        </div>
+      `).join('');
+    }
+
+    function renderMetadata(highlight = {}) {
+      const file = getSelectedFile();
+      if (state.fs === 'fat') {
+        const dirEntries = state.files.map(f => `
+          <div class="dir-entry ${highlight.fileId === f.id ? 'highlight-entry' : ''}" id="entry-${f.id}">
+            <strong>${f.name}</strong><br>
+            Start cluster: ${f.blocks[0]}<br>
+            Size: ${f.size}<br>
+            FAT chain: ${f.blocks.join(' → ')} → EOF
+          </div>
+        `).join('');
+        const fatRows = state.files.map(f =>
+          f.blocks.map((b, i) => `<div class="fat-table-entry ${highlight.block === b ? 'highlight-entry' : ''}" id="fat-${b}">FAT[${b}] = ${f.blocks[i+1] ?? 'EOF'} (${f.id})</div>`).join('')
+        ).join('');
+        els.metadataPane.innerHTML = `
+          <h3>Directory entries</h3>
+          ${dirEntries}
+          <h3>File Allocation Table</h3>
+          ${fatRows}
+        `;
+      } else if (state.fs === 'ntfs') {
+        const mft = state.files.map(f => `
+          <div class="mft-entry ${highlight.fileId === f.id ? 'highlight-entry' : ''}" id="entry-${f.id}">
+            <strong>MFT record — ${f.name}</strong><br>
+            Data runs: ${f.blocks.join(', ')}<br>
+            Attributes: $STANDARD_INFORMATION, $DATA, security descriptor<br>
+            ACL: ${f.acl}
+          </div>
+        `).join('');
+        els.metadataPane.innerHTML = `
+          <h3>Master File Table</h3>
+          ${mft}
+          <h3>Directory index</h3>
+          <div class="dir-entry ${highlight.fileId ? 'highlight-entry' : ''}">Lookup filename → MFT record → data runs</div>
+        `;
+      } else {
+        const inodes = state.files.map((f, idx) => `
+          <div class="inode-entry ${highlight.fileId === f.id ? 'highlight-entry' : ''}" id="entry-${f.id}">
+            <strong>inode ${1000 + idx} — ${f.name}</strong><br>
+            Extents / blocks: ${f.blocks.join(', ')}<br>
+            Owner / mode: user:group, rw-r--r--<br>
+            Size: ${f.size}
+          </div>
+        `).join('');
+        els.metadataPane.innerHTML = `
+          <h3>Directory and inode mapping</h3>
+          <div class="dir-entry ${highlight.fileId ? 'highlight-entry' : ''}">Directory entry resolves filename to inode number.</div>
+          <h3>Inodes</h3>
+          ${inodes}
+        `;
+      }
+    }
+
+    function renderComponents(active = []) {
+      const is = (name) => active.includes(name) ? 'highlight-entry' : '';
+      if (state.fs === 'fat') {
+        els.componentsPane.innerHTML = `
+          <div class="dir-entry ${is('boot')}"><strong>Boot sector / BPB</strong><br>Defines layout and file system parameters.</div>
+          <div class="dir-entry ${is('dir')}"><strong>Directory entries</strong><br>Store names, timestamps, start cluster, and size.</div>
+          <div class="dir-entry ${is('fat')}"><strong>FAT chain</strong><br>Maps one cluster to the next cluster for each file.</div>
+          <div class="dir-entry"><strong>Security</strong><br>Native fine-grained ACL model is not present.<span class="badge-no">Limited</span></div>
+          <div class="dir-entry"><strong>Journal</strong><br>No native metadata journal.<span class="badge-no">Absent</span></div>
+        `;
+      } else if (state.fs === 'ntfs') {
+        els.componentsPane.innerHTML = `
+          <div class="dir-entry ${is('boot')}"><strong>$Boot</strong><br>Volume boot information and layout details.</div>
+          <div class="dir-entry ${is('mft')}"><strong>$MFT</strong><br>Central metadata table holding file records.</div>
+          <div class="dir-entry ${is('journal')}"><strong>$LogFile</strong><br>Journal records intended and committed metadata updates.</div>
+          <div class="dir-entry ${is('security')}"><strong>Security descriptors / ACLs</strong><br>Windows access control for users and groups.</div>
+          <div class="dir-entry ${is('bitmap')}"><strong>Allocation bitmap</strong><br>Tracks used and free clusters.</div>
+        `;
+      } else {
+        els.componentsPane.innerHTML = `
+          <div class="dir-entry ${is('superblock')}"><strong>Superblock</strong><br>Stores global file system information.</div>
+          <div class="dir-entry ${is('inode')}"><strong>Inodes</strong><br>Store metadata and pointers/extents to file blocks.</div>
+          <div class="dir-entry ${is('journal')}"><strong>Journal</strong><br>Protects metadata consistency during updates.</div>
+          <div class="dir-entry ${is('security')}"><strong>Unix permissions</strong><br>Owner, group, and mode bits define access.</div>
+          <div class="dir-entry ${is('extent')}"><strong>Extents</strong><br>Represent contiguous storage ranges efficiently.</div>
+        `;
+      }
+    }
+
+    function render() {
+      renderFileSelect();
+      renderSummary();
+      renderFeatureBadges();
+      renderMetadata();
+      renderComponents();
+      renderBlocks();
+      els.fsDescription.textContent = fsInfo[state.fs].description;
+      els.deepExplanation.textContent = fsInfo[state.fs].deep;
+    }
+
+    async function highlightMetadata(fileId, block) {
+      renderMetadata({ fileId, block });
+      await delay(getSpeed() * 0.7);
+    }
+
+    async function stepBlocks(blocks, msg, componentNames = [], changed = []) {
+      renderComponents(componentNames);
+      renderBlocks(blocks, changed);
+      setStatus(msg);
+      log(msg);
+      await delay(getSpeed());
+    }
+
+    async function runRead() {
+      if (state.running) return;
+      state.running = true;
+      els.readBtn.disabled = els.writeBtn.disabled = true;
+      clearLog();
+
+      const file = getSelectedFile();
+      await highlightMetadata(file.id);
+
+      if (state.fs === 'fat') {
+        await stepBlocks([0], `Read ${file.name}: inspect boot sector for layout and cluster size.`, ['boot']);
+        await stepBlocks([21], `Read directory entry to find the start cluster for ${file.name}.`, ['dir']);
+        for (const b of file.blocks) {
+          await highlightMetadata(file.id, b);
+          await stepBlocks([1, b], `Follow FAT entry for cluster ${b} and read its data block.`, ['fat']);
+        }
+        await stepBlocks(file.blocks, `Read complete. FAT reached end-of-file for ${file.name}.`, ['dir', 'fat']);
+      }
+
+      if (state.fs === 'ntfs') {
+        await stepBlocks([0], `Read ${file.name}: inspect $Boot to understand NTFS layout.`, ['boot']);
+        await highlightMetadata(file.id);
+        await stepBlocks([1], `Resolve filename to its MFT record and read file attributes.`, ['mft']);
+        await stepBlocks([22], `Check security descriptor / ACLs to verify access rights.`, ['security']);
+        for (const b of file.blocks) {
+          await stepBlocks([1, b], `Use MFT data runs to fetch block ${b} for ${file.name}.`, ['mft']);
+        }
+        await stepBlocks(file.blocks, `Read complete. NTFS assembled the file from its data runs.`, ['mft', 'security']);
+      }
+
+      if (state.fs === 'ext4') {
+        await stepBlocks([0], `Read ${file.name}: inspect superblock and file system state.`, ['superblock']);
+        await highlightMetadata(file.id);
+        await stepBlocks([1], `Directory lookup resolves the filename to an inode.`, ['inode']);
+        await stepBlocks([22], `Check Linux permissions before reading the file.`, ['security']);
+        for (const b of file.blocks) {
+          await stepBlocks([1, b], `Read block ${b} using inode extent mapping.`, ['inode', 'extent']);
+        }
+        await stepBlocks(file.blocks, `Read complete. ext4 followed inode metadata and extents successfully.`, ['inode', 'extent']);
+      }
+
+      state.running = false;
+      els.readBtn.disabled = els.writeBtn.disabled = false;
+    }
+
+    async function runWrite() {
+      if (state.running) return;
+      const file = getSelectedFile();
+      const newBlock = state.freeBlocks.shift();
+      if (newBlock == null) {
+        setStatus('No free blocks are left in this simulation. Reset to continue.');
+        log('Write failed: no free blocks available.');
+        return;
+      }
+
+      state.running = true;
+      els.readBtn.disabled = els.writeBtn.disabled = true;
+      clearLog();
+      await highlightMetadata(file.id);
+
+      if (state.fs === 'fat') {
+        await stepBlocks([21], `Write ${file.name}: update directory context and identify the file chain.`, ['dir']);
+        await stepBlocks([1, newBlock], `Allocate free cluster ${newBlock} and update FAT so the previous last cluster points to it.`, ['fat'], [newBlock]);
+        file.blocks.push(newBlock);
+        await highlightMetadata(file.id, newBlock);
+        await stepBlocks([21, newBlock], `Update file size and last cluster in the directory entry. Data is now stored in cluster ${newBlock}.`, ['dir', 'fat'], [newBlock]);
+        await stepBlocks(file.blocks, `Write complete. FAT extended the cluster chain, but no journal entry exists for crash recovery.`, ['dir', 'fat'], [newBlock]);
+      }
+
+      if (state.fs === 'ntfs') {
+        await stepBlocks([21], `Write ${file.name}: create a journal intent record in $LogFile before metadata changes.`, ['journal']);
+        await stepBlocks([22], `Check ACL and security descriptor to ensure the write is allowed.`, ['security']);
+        await stepBlocks([1, newBlock], `Update the MFT record and allocation state to attach new cluster ${newBlock}.`, ['mft', 'bitmap'], [newBlock]);
+        file.blocks.push(newBlock);
+        await highlightMetadata(file.id, newBlock);
+        await stepBlocks([21, 1, newBlock], `Commit the metadata update to the journal and finalize the data run.`, ['journal', 'mft'], [newBlock]);
+        await stepBlocks(file.blocks, `Write complete. NTFS stored the new block and preserved a recovery trail in the journal.`, ['mft', 'journal', 'security'], [newBlock]);
+      }
+
+      if (state.fs === 'ext4') {
+        await stepBlocks([21], `Write ${file.name}: journal metadata intent before changing inode and extent information.`, ['journal']);
+        await stepBlocks([22], `Check owner/group/mode permissions for write access.`, ['security']);
+        await stepBlocks([1, newBlock], `Allocate block ${newBlock} and update inode extent mapping.`, ['inode', 'extent'], [newBlock]);
+        file.blocks.push(newBlock);
+        await highlightMetadata(file.id, newBlock);
+        await stepBlocks([21, 1, newBlock], `Commit the journaled metadata and expose the updated file layout.`, ['journal', 'inode', 'extent'], [newBlock]);
+        await stepBlocks(file.blocks, `Write complete. ext4 updated the inode and protected metadata consistency with journaling.`, ['journal', 'inode', 'security', 'extent'], [newBlock]);
+      }
+
+      render();
+      state.running = false;
+      els.readBtn.disabled = els.writeBtn.disabled = false;
+    }
+
+    els.fsSelect.addEventListener('change', (e) => {
+      state.fs = e.target.value;
+      setStatus(`Switched to ${fsInfo[state.fs].label}. Choose Read or Write.`);
+      render();
+      clearLog();
+    });
+
+    els.fileSelect.addEventListener('change', (e) => {
+      state.selectedFileId = e.target.value;
+      setStatus(`Selected ${getSelectedFile().name}. Ready for simulation.`);
+      render();
+    });
+
+    els.readBtn.addEventListener('click', runRead);
+    els.writeBtn.addEventListener('click', runWrite);
+    els.resetBtn.addEventListener('click', resetState);
+
+    render();
+    setStatus('Choose a file system and click Read or Write.');
+  </script>
+</body>
+</html>

@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Interactive Digital Forensics Simulator</title>
+<style>
+  :root{
+    --bg:#eef4fb;
+    --panel:#ffffff;
+    --panel-2:#f7fbff;
+    --text:#16324f;
+    --muted:#5f7287;
+    --line:#d7e4f2;
+    --blue:#2d7ff9;
+    --green:#16a34a;
+    --orange:#f59e0b;
+    --red:#dc2626;
+    --purple:#8b5cf6;
+    --teal:#0ea5a4;
+    --gray:#94a3b8;
+    --shadow:0 12px 30px rgba(32,70,121,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,Arial,sans-serif;background:linear-gradient(180deg,#eef4fb 0%,#e8f1fa 100%);color:var(--text)}
+  .wrap{max-width:1500px;margin:0 auto;padding:20px}
+  .hero,.panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}
+  .hero{padding:24px;margin-bottom:18px}
+  h1,h2,h3{margin:0 0 10px}
+  h1{font-size:2rem}
+  h2{font-size:1.35rem}
+  h3{font-size:1rem}
+  p{margin:8px 0;line-height:1.55;color:var(--muted)}
+  .muted{color:var(--muted)}
+  .top-grid{display:grid;grid-template-columns:330px 1fr;gap:18px;align-items:start}
+  .sidebar{display:flex;flex-direction:column;gap:16px}
+  .panel{padding:18px}
+  .controls{display:grid;gap:10px}
+  button,select,input[type="range"]{font:inherit}
+  button{
+    width:100%;padding:12px 14px;border:none;border-radius:12px;cursor:pointer;
+    background:var(--blue);color:white;font-weight:700;box-shadow:0 8px 18px rgba(45,127,249,.18)
+  }
+  button.secondary{background:#eef5ff;color:#25558f;border:1px solid #cfe1f7;box-shadow:none}
+  button.warn{background:var(--orange)}
+  button.good{background:var(--green)}
+  button.red{background:var(--red)}
+  .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .small{font-size:.9rem}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .legend-item{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);font-size:.86rem}
+  .swatch{width:14px;height:14px;border-radius:4px}
+  .main-tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
+  .tab-btn{background:#f4f9ff;color:#315b89;border:1px solid var(--line);box-shadow:none}
+  .tab-btn.active{background:var(--blue);color:#fff}
+  .scene{display:none}
+  .scene.active{display:block}
+  .info-box{padding:14px;border-radius:16px;background:var(--panel-2);border:1px solid var(--line);margin:12px 0}
+
+  .drive-view{display:grid;grid-template-columns:1.2fr .95fr;gap:18px;align-items:start}
+  .disk-shell{background:#f9fcff;border:1px solid var(--line);border-radius:18px;padding:16px}
+  .track-title{font-weight:700;margin-bottom:10px}
+  .block-grid{display:grid;grid-template-columns:repeat(8,minmax(52px,1fr));gap:8px}
+  .blk{min-height:62px;border-radius:12px;border:1px solid #cfe0f2;padding:6px;display:flex;flex-direction:column;justify-content:space-between;background:#eef4fb;font-size:.72rem;position:relative;transition:.2s ease}
+  .blk strong{font-size:.8rem}
+  .blk .hex{font-family:Consolas,monospace;font-size:.69rem;color:#26435f}
+  .blk.free{background:#f1f5f9}
+  .blk.mbr{background:#fde68a}
+  .blk.super{background:#c7d2fe}
+  .blk.inodeTbl{background:#ddd6fe}
+  .blk.dir{background:#fdba74}
+  .blk.fileA{background:#93c5fd}
+  .blk.fileB{background:#6ee7b7}
+  .blk.fileC{background:#f9a8d4}
+  .blk.deleted{background:#fecaca}
+  .blk.corrupt{background:#e5e7eb;background-image:repeating-linear-gradient(45deg,#e5e7eb,#e5e7eb 8px,#cbd5e1 8px,#cbd5e1 16px)}
+  .blk.scan{outline:4px solid var(--orange);transform:translateY(-2px)}
+  .blk.found{outline:4px solid var(--green)}
+  .blk.frag{box-shadow:inset 0 0 0 2px var(--purple)}
+  .meta-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .table-like{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .row{display:grid;grid-template-columns:110px 1fr;border-top:1px solid var(--line)}
+  .row:first-child{border-top:none}
+  .row div{padding:10px 12px}
+  .row div:first-child{background:#f5faff;font-weight:700}
+  .status{padding:12px 14px;border-radius:14px;background:#eff7ff;border:1px solid #cfe0f2;font-weight:700;color:#244d79}
+  .hex-view{font-family:Consolas,monospace;background:#0f172a;color:#dbeafe;padding:14px;border-radius:16px;min-height:210px;line-height:1.65;border:1px solid #1e293b;overflow:auto}
+  .hex-highlight{background:#7c2d12;color:#fff;padding:1px 2px;border-radius:3px}
+  .inline-code{font-family:Consolas,monospace;background:#eff7ff;padding:2px 6px;border-radius:7px;border:1px solid #d5e5f8;color:#25558f}
+
+  .flowline{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  .flowstep{padding:16px;border-radius:16px;border:1px solid var(--line);background:#fbfdff;min-height:98px;position:relative}
+  .flowstep.active{outline:3px solid var(--blue);background:#eef6ff}
+  .signal{height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin-top:10px}
+  .signal span{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--blue));width:40%;animation:move 1.2s linear infinite}
+  @keyframes move{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}
+
+  .imaging-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .sector-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+  .sector{padding:12px;border-radius:12px;background:#f8fbff;border:1px solid var(--line);text-align:center;font-weight:700;min-height:62px;display:flex;align-items:center;justify-content:center}
+  .sector.copying{outline:3px solid var(--orange)}
+  .sector.done{background:#dbeafe;border-color:#93c5fd}
+  .hash-box{font-family:Consolas,monospace;background:#0f172a;color:#dbeafe;border-radius:16px;padding:14px;min-height:200px}
+
+  .reconstruct-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .fragment-list,.rebuild-list{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .fragment{padding:14px;border-radius:14px;background:#f7fbff;border:1px solid var(--line);text-align:center;font-weight:700;min-height:86px;display:flex;flex-direction:column;justify-content:center}
+  .fragment.active{outline:3px solid var(--purple)}
+  .fragment.done{background:#ede9fe;border-color:#c4b5fd}
+
+  .password-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .terminal{background:#0b1220;color:#dbeafe;border:1px solid #1f2937;border-radius:16px;padding:14px;font-family:Consolas,monospace;min-height:280px;overflow:auto;line-height:1.55}
+  .meter{height:18px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin:10px 0}
+  .meter span{display:block;height:100%;background:linear-gradient(90deg,var(--orange),var(--red));width:0%}
+
+  .filesystem-tree{border:1px solid var(--line);border-radius:16px;padding:14px;background:#fbfdff}
+  .tree-line{font-family:Consolas,monospace;padding:5px 0;color:#31506b}
+  .tree-line.active{background:#eef6ff;border-radius:8px;padding-left:8px;color:#0f4c81;font-weight:700}
+
+  @media (max-width:1200px){
+    .top-grid,.drive-view,.imaging-layout,.reconstruct-layout,.password-layout{grid-template-columns:1fr}
+    .main-tabs{grid-template-columns:repeat(3,1fr)}
+  }
+  @media (max-width:760px){
+    .block-grid{grid-template-columns:repeat(4,1fr)}
+    .main-tabs{grid-template-columns:repeat(2,1fr)}
+    .flowline{grid-template-columns:1fr}
+    .fragment-list,.rebuild-list,.sector-grid{grid-template-columns:repeat(2,1fr)}
+    .meta-grid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <h1>Interactive Digital Forensics Simulator</h1>
+    <p>This page is designed as a step-by-step teaching presentation. You can switch between topics, start each process yourself, pause it, reset it, and inspect the evidence view while the animation runs. The goal is to show what the <strong>actual disk</strong>, <strong>filesystem structures</strong>, <strong>raw blocks</strong>, <strong>headers/footers</strong>, <strong>live memory capture</strong>, <strong>disk imaging</strong>, <strong>reconstruction</strong>, and <strong>password cracking workflow</strong> look like in one place.</p>
+    <div class="legend">
+      <div class="legend-item"><span class="swatch" style="background:#fde68a"></span>MBR / partition start</div>
+      <div class="legend-item"><span class="swatch" style="background:#c7d2fe"></span>Superblock / filesystem metadata</div>
+      <div class="legend-item"><span class="swatch" style="background:#ddd6fe"></span>Inode table</div>
+      <div class="legend-item"><span class="swatch" style="background:#fdba74"></span>Directory block</div>
+      <div class="legend-item"><span class="swatch" style="background:#93c5fd"></span>JPEG file data</div>
+      <div class="legend-item"><span class="swatch" style="background:#6ee7b7"></span>Text / other file data</div>
+      <div class="legend-item"><span class="swatch" style="background:#fecaca"></span>Deleted file remnants</div>
+      <div class="legend-item"><span class="swatch" style="background:#94a3b8"></span>Free / unknown blocks</div>
+    </div>
+  </section>
+
+  <div class="top-grid">
+    <aside class="sidebar">
+      <section class="panel">
+        <h2>Global Controls</h2>
+        <div class="controls">
+          <label class="small">Animation speed</label>
+          <input id="speedSlider" type="range" min="100" max="1400" step="100" value="600" />
+          <div class="status" id="globalStatus">Ready. Choose a topic and press Start.</div>
+          <div class="btn-row">
+            <button id="startBtn" class="good">Start</button>
+            <button id="pauseBtn" class="warn">Pause</button>
+          </div>
+          <button id="resetBtn" class="secondary">Reset current topic</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>What you are seeing</h2>
+        <div id="topicDescription" class="info-box small">
+          This simulator opens on the disk structure topic. You can inspect the partition area, filesystem metadata, inode table, directory entries, and raw file blocks.
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Quick Notes</h2>
+        <div class="small">
+          <p><strong>MBR</strong>: the traditional partition record at the beginning of a disk.</p>
+          <p><strong>Filesystem metadata</strong>: structures such as the superblock, allocation data, and inode tables.</p>
+          <p><strong>File carving</strong>: recovery by scanning raw blocks for signatures like <span class="inline-code">FFD8</span> and <span class="inline-code">FFD9</span>, even when directory and inode links are broken.</p>
+          <p><strong>Live forensics</strong>: captures volatile evidence before shutdown, especially RAM and network state.</p>
+        </div>
+      </section>
+    </aside>
+
+    <main>
+      <div class="main-tabs">
+        <button class="tab-btn active" data-scene="structure">Disk Structure</button>
+        <button class="tab-btn" data-scene="carving">File Carving</button>
+        <button class="tab-btn" data-scene="live">Live Forensics</button>
+        <button class="tab-btn" data-scene="imaging">Disk Imaging</button>
+        <button class="tab-btn" data-scene="reconstruction">Data Reconstruction</button>
+        <button class="tab-btn" data-scene="password">Password Cracking</button>
+      </div>
+
+      <section id="structure" class="scene active panel">
+        <h2>1. Disk Structure: MBR → Filesystem → Directories → Inodes → Data Blocks</h2>
+        <p>This view shows a simplified disk layout. At the beginning of the disk you see the partition/boot area, then the filesystem metadata, inode table, directory blocks, and finally blocks that hold actual file content. Click through the animation to follow how a path like <span class="inline-code">/home/user/photo.jpg</span> is resolved.</p>
+        <div class="drive-view">
+          <div class="disk-shell">
+            <div class="track-title">Disk block map</div>
+            <div id="structureGrid" class="block-grid"></div>
+          </div>
+          <div class="meta-grid">
+            <div class="filesystem-tree">
+              <h3>Directory traversal</h3>
+              <div id="treeRoot" class="tree-line">/</div>
+              <div id="treeHome" class="tree-line">├── home</div>
+              <div id="treeUser" class="tree-line">│   └── user</div>
+              <div id="treePhoto" class="tree-line">│       └── photo.jpg → inode 42</div>
+            </div>
+            <div class="table-like">
+              <div class="row"><div>Selected</div><div id="structureSelected">Nothing selected yet</div></div>
+              <div class="row"><div>Meaning</div><div id="structureMeaning">Press Start to animate the structure walkthrough.</div></div>
+              <div class="row"><div>Inode 42</div><div id="inodeInfo">size=1.8 MB, owner=user, direct pointers → blocks 12, 13, 14, 20</div></div>
+              <div class="row"><div>Directory entry</div><div id="dirInfo">photo.jpg → inode 42</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="carving" class="scene panel">
+        <h2>2. File Carving: Scan Raw Blocks for File Signatures</h2>
+        <p>This animation shows a deleted JPEG whose directory entry is gone. The recovery tool ignores the broken filesystem links and scans raw blocks directly. It moves block-by-block until it sees a known header. For JPEG, the common start marker is <span class="inline-code">FFD8</span> and the footer is <span class="inline-code">FFD9</span>.</p>
+        <div class="drive-view">
+          <div class="disk-shell">
+            <div class="track-title">Raw blocks for carving</div>
+            <div id="carvingGrid" class="block-grid"></div>
+          </div>
+          <div>
+            <div class="status" id="carvingStatus">Waiting to start carving.</div>
+            <div class="info-box">
+              <h3>Current logic</h3>
+              <div id="carvingLogic" class="small">The scanner is idle. When started, it will inspect each block's bytes, compare against signature definitions, and continue until the footer is found.</div>
+            </div>
+            <div class="hex-view" id="hexView"></div>
+            <div class="table-like" style="margin-top:12px">
+              <div class="row"><div>Header</div><div>JPEG start marker = FFD8</div></div>
+              <div class="row"><div>Footer</div><div>JPEG end marker = FFD9</div></div>
+              <div class="row"><div>Stop rule</div><div id="stopRule">Stop when footer appears after an identified header, or stop at corruption / size limit.</div></div>
+              <div class="row"><div>Recovered file</div><div id="recoveredFile">No recovered file yet</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="live" class="scene panel">
+        <h2>3. Live Forensics: Evidence from a Running System</h2>
+        <p>Live forensics focuses on evidence that may disappear if the machine powers off. The animation below walks through memory capture, running process collection, network connection capture, and volatile artefact preservation.</p>
+        <div class="flowline" id="liveFlow">
+          <div class="flowstep" data-step="0"><strong>1. Running machine</strong><p class="small">System is live. Volatile evidence still exists.</p><div class="signal"><span></span></div></div>
+          <div class="flowstep" data-step="1"><strong>2. RAM capture</strong><p class="small">Acquire memory image before shutdown.</p></div>
+          <div class="flowstep" data-step="2"><strong>3. Processes & handles</strong><p class="small">Collect running tasks, DLLs, handles, command lines.</p></div>
+          <div class="flowstep" data-step="3"><strong>4. Network state</strong><p class="small">Open sockets, active sessions, ARP, routes.</p></div>
+          <div class="flowstep" data-step="4"><strong>5. Preserve & analyze</strong><p class="small">Export evidence and continue offline analysis.</p></div>
+        </div>
+        <div class="imaging-layout" style="margin-top:16px">
+          <div class="table-like">
+            <div class="row"><div>RAM</div><div id="liveRam">Not captured yet</div></div>
+            <div class="row"><div>Processes</div><div id="liveProc">Not collected yet</div></div>
+            <div class="row"><div>Network</div><div id="liveNet">Not collected yet</div></div>
+            <div class="row"><div>Open files</div><div id="liveFiles">Not collected yet</div></div>
+          </div>
+          <div class="terminal" id="liveTerminal">[live] waiting for acquisition...
+</div>
+        </div>
+      </section>
+
+      <section id="imaging" class="scene panel">
+        <h2>4. Disk Imaging: Bit-for-Bit Forensic Copy with Hash Verification</h2>
+        <p>Forensic imaging copies every readable sector, including deleted areas and slack space, to preserve evidence exactly. The animation shows sectors being copied into an image file and then verified with a cryptographic hash.</p>
+        <div class="imaging-layout">
+          <div>
+            <h3>Original disk sectors</h3>
+            <div id="srcSectors" class="sector-grid"></div>
+          </div>
+          <div>
+            <h3>Forensic image sectors</h3>
+            <div id="dstSectors" class="sector-grid"></div>
+          </div>
+        </div>
+        <div class="imaging-layout" style="margin-top:16px">
+          <div class="status" id="imagingStatus">Ready to image disk.</div>
+          <div class="hash-box" id="hashBox">Original SHA256: pending...
+Image SHA256: pending...
+Verification: pending...
+</div>
+        </div>
+      </section>
+
+      <section id="reconstruction" class="scene panel">
+        <h2>5. Data Reconstruction: Reassemble Fragmented Data</h2>
+        <p>When a file is fragmented, its content may be stored non-contiguously. Reconstruction uses metadata when available, and otherwise relies on signatures, internal structure, offsets, size assumptions, and content continuity.</p>
+        <div class="reconstruct-layout">
+          <div>
+            <h3>Fragments discovered on disk</h3>
+            <div id="fragmentPool" class="fragment-list"></div>
+          </div>
+          <div>
+            <h3>Rebuilt order</h3>
+            <div id="fragmentRebuild" class="rebuild-list"></div>
+          </div>
+        </div>
+        <div class="table-like" style="margin-top:16px">
+          <div class="row"><div>Current step</div><div id="reconStep">Waiting to start reconstruction</div></div>
+          <div class="row"><div>Reasoning</div><div id="reconReason">The tool will explain why each fragment belongs before or after another.</div></div>
+          <div class="row"><div>Recovered chain</div><div id="reconChain">No chain yet</div></div>
+        </div>
+      </section>
+
+      <section id="password" class="scene panel">
+        <h2>6. Password Cracking: Educational Brute-Force Demonstration</h2>
+        <p>This animation demonstrates the defensive concept of brute-force password guessing against a toy target. It is intentionally simplified and does not provide real cracking capability. It shows the cycle: generate guess → hash guess → compare to target hash → stop on match.</p>
+        <div class="password-layout">
+          <div>
+            <div class="table-like">
+              <div class="row"><div>Target password</div><div>demo</div></div>
+              <div class="row"><div>Target hash</div><div id="targetHash">pending</div></div>
+              <div class="row"><div>Current guess</div><div id="currentGuess">waiting...</div></div>
+              <div class="row"><div>Guess hash</div><div id="guessHash">waiting...</div></div>
+              <div class="row"><div>Attempts</div><div id="attemptCount">0</div></div>
+            </div>
+            <div class="meter"><span id="progressBar"></span></div>
+            <div class="status" id="passwordStatus">Ready to demonstrate password guessing.</div>
+          </div>
+          <div class="terminal" id="passwordTerminal">[bruteforce] idle
+</div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+const descriptions = {
+  structure: 'Follow how the operating system locates a file by walking from the directory to the inode and then to the actual data blocks.',
+  carving: 'Watch raw block scanning for file signatures. This shows why carving still works when filesystem references are damaged or deleted.',
+  live: 'Observe the order of live evidence capture: volatile RAM first, then processes, then network state, then preservation.',
+  imaging: 'See a sector-by-sector forensic copy and compare source and image hashes to verify integrity.',
+  reconstruction: 'Watch fragmented file pieces get reordered based on continuity and file format structure.',
+  password: 'This is a safe educational animation of brute-force logic against a toy example.'
+};
+
+let currentScene = 'structure';
+let timer = null;
+let speed = 600;
+const globalStatus = document.getElementById('globalStatus');
+const descBox = document.getElementById('topicDescription');
+
+const structureBlocks = [
+  {cls:'mbr', title:'0', label:'MBR', hex:'55 AA | partitions', meaning:'Master Boot Record / partition table at disk start.'},
+  {cls:'super', title:'1', label:'SB', hex:'EXT4 super', meaning:'Filesystem superblock: size, block count, state.'},
+  {cls:'inodeTbl', title:'2', label:'IT', hex:'inode 1-20', meaning:'Beginning of inode table.'},
+  {cls:'inodeTbl', title:'3', label:'IT', hex:'inode 21-40', meaning:'More inode entries.'},
+  {cls:'inodeTbl', title:'4', label:'inode42', hex:'size ptrs', meaning:'inode 42 points to photo.jpg data blocks.'},
+  {cls:'dir', title:'5', label:'DIR', hex:'photo.jpg→42', meaning:'Directory entry maps filename to inode number.'},
+  {cls:'fileB', title:'6', label:'notes.txt', hex:'54 65 78 74', meaning:'Normal file data block.'},
+  {cls:'fileA', title:'7', label:'JPEG-1', hex:'FF D8 FF E0', meaning:'JPEG header begins here.'},
+  {cls:'fileA', title:'8', label:'JPEG-2', hex:'image bytes', meaning:'JPEG body continues.'},
+  {cls:'fileA frag', title:'9', label:'JPEG-3', hex:'image bytes', meaning:'Another JPEG fragment.'},
+  {cls:'free', title:'10', label:'FREE', hex:'00 00 00 00', meaning:'Unallocated block.'},
+  {cls:'deleted', title:'11', label:'DEL', hex:'old header', meaning:'Deleted remnants still present physically.'},
+  {cls:'fileA frag', title:'12', label:'JPEG-4', hex:'FF D9', meaning:'JPEG footer ends here.'},
+  {cls:'fileC', title:'13', label:'log.bin', hex:'7B 20 0A', meaning:'Binary / log file content.'},
+  {cls:'corrupt', title:'14', label:'BAD', hex:'?? ?? ??', meaning:'Corrupted or unreadable block.'},
+  {cls:'free', title:'15', label:'FREE', hex:'00 00 00 00', meaning:'Another free block.'}
+];
+
+const carvingBlocks = [
+  {cls:'free', label:'B0', bytes:'00 11 22 33 44 55 66 77', note:'Random unallocated bytes.'},
+  {cls:'deleted', label:'B1', bytes:'13 37 90 AB C1 D2 E3 F4', note:'Deleted data, not a valid file start.'},
+  {cls:'free', label:'B2', bytes:'09 88 73 61 45 19 20 EF', note:'No known header found.'},
+  {cls:'fileA', label:'B3', bytes:'FF D8 FF E0 00 10 4A 46', note:'JPEG header detected. Carving starts.'},
+  {cls:'fileA', label:'B4', bytes:'49 46 00 01 AA 8F 32 55', note:'JPEG body fragment.'},
+  {cls:'fileA frag', label:'B5', bytes:'7C 92 18 FE 42 31 09 77', note:'JPEG content continues.'},
+  {cls:'free', label:'B6', bytes:'90 90 90 90 00 00 00 00', note:'Potential gap / ambiguous continuation.'},
+  {cls:'fileA frag', label:'B7', bytes:'28 39 A1 BC D1 E0 FF D9', note:'JPEG footer found. Stop carving.'},
+  {cls:'fileB', label:'B8', bytes:'25 50 44 46 2D 31 2E 34', note:'PDF-like header, different file type.'},
+  {cls:'free', label:'B9', bytes:'AA BB CC DD EE FF 01 02', note:'Noise block.'},
+  {cls:'fileC', label:'B10', bytes:'89 50 4E 47 0D 0A 1A 0A', note:'PNG signature, not JPEG.'},
+  {cls:'free', label:'B11', bytes:'00 00 00 00 00 00 00 00', note:'Unused block.'}
+];
+
+const structureGrid = document.getElementById('structureGrid');
+const carvingGrid = document.getElementById('carvingGrid');
+
+function buildGrid(container, items, mode='structure'){
+  container.innerHTML='';
+  items.forEach((b, idx)=>{
+    const el = document.createElement('div');
+    el.className = `blk ${b.cls}`;
+    el.id = `${mode}-blk-${idx}`;
+    el.innerHTML = `<strong>${b.label || b.title}</strong><div>${mode==='structure' ? `Block ${b.title}` : b.label}</div><div class="hex">${mode==='structure' ? b.hex : b.bytes}</div>`;
+    container.appendChild(el);
+  });
+}
+buildGrid(structureGrid, structureBlocks, 'structure');
+buildGrid(carvingGrid, carvingBlocks, 'carving');
+
+function clearHighlights(prefix, len){
+  for(let i=0;i<len;i++){
+    const el=document.getElementById(`${prefix}-blk-${i}`);
+    if(el){el.classList.remove('scan','found');}
+  }
+}
+
+let structureStep = 0;
+function runStructure(){
+  clearHighlights('structure', structureBlocks.length);
+  ['treeRoot','treeHome','treeUser','treePhoto'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  const selected = document.getElementById('structureSelected');
+  const meaning = document.getElementById('structureMeaning');
+
+  const steps = [
+    {idx:0, text:'MBR / partition record', meaning:'The system begins at disk start to understand partitioning and locate the filesystem.'},
+    {idx:1, text:'Superblock', meaning:'The filesystem metadata explains block size, inode count, and layout.'},
+    {idx:5, text:'Directory block', meaning:'The OS reads a directory entry to resolve the filename.' , tree:'treePhoto'},
+    {idx:4, text:'inode 42', meaning:'The inode stores metadata and pointers to data blocks.', tree:'treePhoto'},
+    {idx:7, text:'JPEG data block 1', meaning:'The first data block for photo.jpg contains the JPEG header.'},
+    {idx:8, text:'JPEG data block 2', meaning:'The file continues in the next referenced block.'},
+    {idx:9, text:'JPEG data block 3', meaning:'A later fragment also belongs to the file.'},
+    {idx:12, text:'JPEG data block 4 / footer', meaning:'The file content ends when the final block is reached.'}
+  ];
+
+  const s = steps[structureStep % steps.length];
+  const el = document.getElementById(`structure-blk-${s.idx}`);
+  el.classList.add('scan');
+  selected.textContent = s.text;
+  meaning.textContent = s.meaning;
+  document.getElementById('structure-blk-4').classList.add('found');
+  document.getElementById('structure-blk-5').classList.add('found');
+  if(s.tree){ document.getElementById(s.tree).classList.add('active'); }
+  if(structureStep===0) document.getElementById('treeRoot').classList.add('active');
+  if(structureStep>=1) document.getElementById('treeHome').classList.add('active');
+  if(structureStep>=2) document.getElementById('treeUser').classList.add('active');
+  if(structureStep>=2) document.getElementById('treePhoto').classList.add('active');
+  globalStatus.textContent = `Disk structure walkthrough: step ${structureStep+1} of ${steps.length}`;
+  structureStep++;
+}
+
+let carvingIndex = 0;
+let carvingMode = 'scan';
+let recovered = [];
+function renderHex(idx, highlightHeader=false, highlightFooter=false){
+  const b = carvingBlocks[idx];
+  let bytes = b.bytes;
+  if(highlightHeader) bytes = bytes.replace('FF D8', '<span class="hex-highlight">FF D8</span>');
+  if(highlightFooter) bytes = bytes.replace('FF D9', '<span class="hex-highlight">FF D9</span>');
+  document.getElementById('hexView').innerHTML = `Offset 0x${(idx*512).toString(16).padStart(4,'0')}  ${bytes}<br>Interpretation: ${b.note}`;
+}
+function resetCarvingVisuals(){
+  clearHighlights('carving', carvingBlocks.length);
+  recovered=[];
+  document.getElementById('recoveredFile').textContent = 'No recovered file yet';
+}
+function runCarving(){
+  clearHighlights('carving', carvingBlocks.length);
+  const status = document.getElementById('carvingStatus');
+  const logic = document.getElementById('carvingLogic');
+  const el = document.getElementById(`carving-blk-${carvingIndex}`);
+  el.classList.add('scan');
+  const block = carvingBlocks[carvingIndex];
+
+  if(carvingMode === 'scan'){
+    renderHex(carvingIndex, block.bytes.includes('FF D8'), false);
+    logic.textContent = `Scanner inspects ${block.label} and compares its first bytes against known signatures. Bytes seen: ${block.bytes}.`;
+    if(block.bytes.includes('FF D8')){
+      status.textContent = `Header found in ${block.label}. Start carving from this block.`;
+      logic.textContent = 'A JPEG header was matched. The tool now copies sequential blocks into a candidate output file until it reaches a valid footer.';
+      carvingMode = 'carve';
+      recovered.push(block.label);
+      el.classList.add('found');
+    } else {
+      status.textContent = `Scanning ${block.label}: no JPEG header.`;
+    }
+  } else {
+    recovered.push(block.label);
+    if(block.bytes.includes('FF D9')){
+      renderHex(carvingIndex, false, true);
+      status.textContent = `Footer found in ${block.label}. Stop carving and finalize recovered JPEG.`;
+      logic.textContent = 'Because the footer appeared after a valid header, the tool stops. The candidate file is reconstructed from the collected blocks.';
+      document.getElementById('recoveredFile').textContent = `recovered_photo.jpg from blocks ${recovered.join(' → ')}`;
+      el.classList.add('found');
+      carvingMode = 'done';
+    } else {
+      renderHex(carvingIndex, false, false);
+      status.textContent = `Carving block ${block.label} into output file...`;
+      logic.textContent = 'Header was already found, so this block is appended to the output while the tool continues searching for the footer.';
+    }
+  }
+
+  if(carvingMode === 'done'){
+    globalStatus.textContent = 'Carving completed. Footer reached and output file assembled.';
+  } else {
+    carvingIndex = (carvingIndex + 1) % carvingBlocks.length;
+    globalStatus.textContent = `Carving progress: inspecting raw block ${carvingIndex}`;
+  }
+}
+
+let liveStep = 0;
+const liveSteps = document.querySelectorAll('#liveFlow .flowstep');
+function appendTerminal(id, text){
+  const term = document.getElementById(id);
+  term.textContent += text + '\n';
+  term.scrollTop = term.scrollHeight;
+}
+function runLive(){
+  liveSteps.forEach(x=>x.classList.remove('active'));
+  const step = liveStep % 5;
+  liveSteps[step].classList.add('active');
+  if(step===0){
+    appendTerminal('liveTerminal','[live] host is running. volatile evidence available.');
+    document.getElementById('liveRam').textContent = 'Memory contents still present in RAM';
+  }
+  if(step===1){
+    appendTerminal('liveTerminal','[live] acquiring RAM image: memdump.raw');
+    document.getElementById('liveRam').textContent = 'Captured 16 GB RAM image → memdump.raw';
+  }
+  if(step===2){
+    appendTerminal('liveTerminal','[live] enumerating processes, loaded modules, handles');
+    document.getElementById('liveProc').textContent = 'PID 424 explorer.exe, PID 812 browser.exe, PID 991 suspicious.exe';
+    document.getElementById('liveFiles').textContent = 'Open files: browser cache, temp archive, mounted USB volume';
+  }
+  if(step===3){
+    appendTerminal('liveTerminal','[live] collecting sockets, routes, ARP cache, remote endpoints');
+    document.getElementById('liveNet').textContent = 'TCP 443 established to 203.0.113.5, DNS cache preserved';
+  }
+  if(step===4){
+    appendTerminal('liveTerminal','[live] volatile evidence preserved. continue with offline analysis.');
+    globalStatus.textContent = 'Live forensic sequence completed.';
+  }
+  liveStep++;
+}
+
+const srcSectors = document.getElementById('srcSectors');
+const dstSectors = document.getElementById('dstSectors');
+const sectorLabels = ['S0','S1','S2','S3','S4','S5','S6','S7','S8','S9','S10','S11'];
+function buildSectors(){
+  srcSectors.innerHTML=''; dstSectors.innerHTML='';
+  sectorLabels.forEach((s,i)=>{
+    const a=document.createElement('div'); a.className='sector'; a.id=`src-${i}`; a.textContent=s; srcSectors.appendChild(a);
+    const b=document.createElement('div'); b.className='sector'; b.id=`dst-${i}`; b.textContent='empty'; dstSectors.appendChild(b);
+  });
+}
+buildSectors();
+let imagingStep=0;
+function runImaging(){
+  for(let i=0;i<sectorLabels.length;i++){
+    document.getElementById(`src-${i}`).classList.remove('copying');
+    document.getElementById(`dst-${i}`).classList.remove('copying');
+  }
+  if(imagingStep < sectorLabels.length){
+    document.getElementById(`src-${imagingStep}`).classList.add('copying');
+    document.getElementById(`dst-${imagingStep}`).classList.add('copying');
+    document.getElementById(`dst-${imagingStep}`).textContent = sectorLabels[imagingStep];
+    document.getElementById(`dst-${imagingStep}`).classList.add('done');
+    document.getElementById('imagingStatus').textContent = `Copying sector ${sectorLabels[imagingStep]} into forensic image...`;
+    document.getElementById('hashBox').textContent = `Original SHA256: 8ab3...c91f\nImage SHA256: computing after copy...\nVerification: not yet complete...`;
+  } else {
+    document.getElementById('imagingStatus').textContent = 'Image complete. Hashes match. Evidence preserved without altering source.';
+    document.getElementById('hashBox').textContent = `Original SHA256: 8ab3f47dc9f0f2a0...c91f\nImage SHA256:    8ab3f47dc9f0f2a0...c91f\nVerification: MATCH`;
+    globalStatus.textContent = 'Disk imaging complete and verified.';
+  }
+  imagingStep++;
+}
+
+const fragments = [
+  {name:'Frag-C', why:'Contains internal JPEG table that fits after image header.'},
+  {name:'Frag-A', why:'Starts with file header and metadata segment.'},
+  {name:'Frag-D', why:'Contains footer / final terminator.'},
+  {name:'Frag-B', why:'Image body continues smoothly from A.'}
+];
+const correctOrder = ['Frag-A','Frag-B','Frag-C','Frag-D'];
+function buildFragments(){
+  const pool=document.getElementById('fragmentPool');
+  const rebuild=document.getElementById('fragmentRebuild');
+  pool.innerHTML=''; rebuild.innerHTML='';
+  fragments.forEach((f,i)=>{
+    const div=document.createElement('div'); div.className='fragment'; div.id=`frag-${f.name}`; div.innerHTML=`<div>${f.name}</div><div class="small muted">${f.why}</div>`; pool.appendChild(div);
+  });
+  correctOrder.forEach(name=>{
+    const div=document.createElement('div'); div.className='fragment'; div.id=`slot-${name}`; div.innerHTML=`<div>${name}</div><div class="small muted">waiting</div>`; rebuild.appendChild(div);
+  });
+}
+buildFragments();
+let reconStep=0;
+function runReconstruction(){
+  correctOrder.forEach(name=>{document.getElementById(`frag-${name}`).classList.remove('active','done');});
+  if(reconStep < correctOrder.length){
+    const name = correctOrder[reconStep];
+    document.getElementById(`frag-${name}`).classList.add('active');
+    document.getElementById(`slot-${name}`).classList.add('done');
+    document.getElementById(`slot-${name}`).querySelector('.small').textContent = 'placed';
+    document.getElementById('reconStep').textContent = `Placed ${name}`;
+    document.getElementById('reconReason').textContent = fragments.find(f=>f.name===name).why;
+    document.getElementById('reconChain').textContent = correctOrder.slice(0,reconStep+1).join(' → ');
+  } else {
+    document.getElementById('reconStep').textContent = 'Reconstruction complete';
+    document.getElementById('reconReason').textContent = 'Header, content continuity, and footer all agree with the rebuilt order.';
+    globalStatus.textContent = 'Fragment reconstruction complete.';
+  }
+  reconStep++;
+}
+
+function toyHash(s){
+  let h=0;
+  for(let i=0;i<s.length;i++) h=(h*31 + s.charCodeAt(i)) % 1000000007;
+  return h.toString(16).padStart(8,'0');
+}
+const targetPassword='demo';
+document.getElementById('targetHash').textContent = toyHash(targetPassword);
+let attempts=0;
+let passIndex=0;
+const guessList=['aaaa','aaab','test','word','data','pass','demo'];
+function runPassword(){
+  if(passIndex >= guessList.length){
+    document.getElementById('passwordStatus').textContent = 'Demonstration finished.';
+    return;
+  }
+  const guess = guessList[passIndex];
+  const gh = toyHash(guess);
+  attempts++;
+  document.getElementById('currentGuess').textContent = guess;
+  document.getElementById('guessHash').textContent = gh;
+  document.getElementById('attemptCount').textContent = String(attempts);
+  document.getElementById('passwordTerminal').textContent += `[bruteforce] try ${attempts}: guess=${guess} hash=${gh}` + '\n';
+  document.getElementById('passwordTerminal').scrollTop = document.getElementById('passwordTerminal').scrollHeight;
+  document.getElementById('progressBar').style.width = `${(attempts/guessList.length)*100}%`;
+  if(guess === targetPassword){
+    document.getElementById('passwordStatus').textContent = 'Match found in toy demonstration. In real systems, strong hashing and rate limits slow this dramatically.';
+    globalStatus.textContent = 'Password demonstration reached the correct guess.';
+  } else {
+    document.getElementById('passwordStatus').textContent = 'No match yet. Generate next guess and compare again.';
+  }
+  passIndex++;
+}
+
+function tick(){
+  if(currentScene==='structure') runStructure();
+  if(currentScene==='carving') runCarving();
+  if(currentScene==='live') runLive();
+  if(currentScene==='imaging') runImaging();
+  if(currentScene==='reconstruction') runReconstruction();
+  if(currentScene==='password') runPassword();
+}
+
+function start(){
+  if(timer) clearInterval(timer);
+  timer = setInterval(tick, speed);
+  globalStatus.textContent = `Running ${currentScene} animation...`;
+}
+function pause(){
+  if(timer) clearInterval(timer);
+  timer = null;
+  globalStatus.textContent = `Paused ${currentScene} animation.`;
+}
+function resetCurrent(){
+  pause();
+  if(currentScene==='structure'){
+    structureStep=0; clearHighlights('structure', structureBlocks.length);
+    document.getElementById('structureSelected').textContent='Nothing selected yet';
+    document.getElementById('structureMeaning').textContent='Press Start to animate the structure walkthrough.';
+    ['treeRoot','treeHome','treeUser','treePhoto'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  }
+  if(currentScene==='carving'){
+    carvingIndex=0; carvingMode='scan'; resetCarvingVisuals();
+    document.getElementById('carvingStatus').textContent='Waiting to start carving.';
+    document.getElementById('carvingLogic').textContent='The scanner is idle. When started, it will inspect each block\'s bytes, compare against signature definitions, and continue until the footer is found.';
+    document.getElementById('hexView').textContent='';
+  }
+  if(currentScene==='live'){
+    liveStep=0; liveSteps.forEach(x=>x.classList.remove('active'));
+    document.getElementById('liveRam').textContent='Not captured yet';
+    document.getElementById('liveProc').textContent='Not collected yet';
+    document.getElementById('liveNet').textContent='Not collected yet';
+    document.getElementById('liveFiles').textContent='Not collected yet';
+    document.getElementById('liveTerminal').textContent='[live] waiting for acquisition...\n';
+  }
+  if(currentScene==='imaging'){
+    imagingStep=0; buildSectors();
+    document.getElementById('imagingStatus').textContent='Ready to image disk.';
+    document.getElementById('hashBox').textContent='Original SHA256: pending...\nImage SHA256: pending...\nVerification: pending...\n';
+  }
+  if(currentScene==='reconstruction'){
+    reconStep=0; buildFragments();
+    document.getElementById('reconStep').textContent='Waiting to start reconstruction';
+    document.getElementById('reconReason').textContent='The tool will explain why each fragment belongs before or after another.';
+    document.getElementById('reconChain').textContent='No chain yet';
+  }
+  if(currentScene==='password'){
+    attempts=0; passIndex=0;
+    document.getElementById('currentGuess').textContent='waiting...';
+    document.getElementById('guessHash').textContent='waiting...';
+    document.getElementById('attemptCount').textContent='0';
+    document.getElementById('progressBar').style.width='0%';
+    document.getElementById('passwordStatus').textContent='Ready to demonstrate password guessing.';
+    document.getElementById('passwordTerminal').textContent='[bruteforce] idle\n';
+  }
+  globalStatus.textContent = `Reset ${currentScene} topic.`;
+}
+
+document.getElementById('startBtn').addEventListener('click', start);
+document.getElementById('pauseBtn').addEventListener('click', pause);
+document.getElementById('resetBtn').addEventListener('click', resetCurrent);
+document.getElementById('speedSlider').addEventListener('input', e=>{
+  speed = Number(e.target.value);
+  if(timer){ start(); }
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    pause();
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.scene').forEach(s=>s.classList.remove('active'));
+    btn.classList.add('active');
+    currentScene = btn.dataset.scene;
+    document.getElementById(currentScene).classList.add('active');
+    descBox.textContent = descriptions[currentScene];
+    globalStatus.textContent = `Selected ${currentScene}. Press Start to run it.`;
+  });
+});
+
+resetCurrent();
+</script>
+</body>
+</html>

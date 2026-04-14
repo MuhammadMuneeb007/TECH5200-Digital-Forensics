@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>File System & Digital Forensics Case Visualizer</title>
+  <style>
+    :root{
+      --bg:#f5f7fb; --panel:#ffffff; --ink:#172033; --muted:#5b667c; --line:#d9deea;
+      --accent:#2563eb; --good:#16a34a; --warn:#d97706; --bad:#dc2626; --soft:#eef4ff;
+      --boot:#cbd5e1; --meta:#bfdbfe; --journal:#ddd6fe; --data:#bbf7d0; --deleted:#fecaca; --free:#f4f4f5;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45}
+    .wrap{max-width:1500px;margin:0 auto;padding:22px}
+    h1,h2,h3{margin:0 0 10px}
+    p{margin:0 0 10px}
+    .hero,.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 20px rgba(16,24,40,.05)}
+    .hero{padding:22px;margin-bottom:18px}
+    .grid{display:grid;gap:16px}
+    .g3{grid-template-columns:1.2fr .8fr .8fr}
+    .g2{grid-template-columns:1fr 1fr}
+    .kpi{padding:16px;border:1px solid var(--line);border-radius:16px;background:#fff}
+    .muted{color:var(--muted)}
+    .small{font-size:12px}
+    .btns{display:flex;gap:10px;flex-wrap:wrap}
+    button,select{border:1px solid var(--line);background:white;border-radius:12px;padding:10px 14px;font-weight:600;cursor:pointer}
+    button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    button:hover{filter:brightness(.98)}
+    .section{margin-top:18px}
+    .card{padding:16px}
+    .disk-grid{display:grid;grid-template-columns:repeat(8,minmax(70px,1fr));gap:10px}
+    .block{padding:10px;border-radius:14px;border:1px solid var(--line);min-height:78px;cursor:pointer;transition:transform .12s ease,border-color .12s ease}
+    .block:hover{transform:translateY(-1px)}
+    .block.active{outline:3px solid #111827}
+    .boot{background:var(--boot)} .meta{background:var(--meta)} .journal{background:var(--journal)}
+    .data{background:var(--data)} .deleted{background:var(--deleted)} .free{background:var(--free)}
+    .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    .pill{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:white;font-size:12px}
+    .dot{width:12px;height:12px;border-radius:50%}
+    .inspector pre{white-space:pre-wrap;word-break:break-word;background:#0f172a;color:#e5efff;padding:12px;border-radius:12px;min-height:72px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{border:1px solid var(--line);padding:8px 9px;text-align:left;vertical-align:top}
+    th{background:#f8fafc}
+    tr.changed{background:#fff7ed}
+    tr.deleted-row{background:#fef2f2}
+    tr.same{background:#f0fdf4}
+    .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}
+    .b-good{background:#dcfce7;color:#166534}.b-warn{background:#ffedd5;color:#9a3412}.b-bad{background:#fee2e2;color:#991b1b}.b-info{background:#dbeafe;color:#1d4ed8}
+    .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .story{background:var(--soft);border:1px solid #c7d2fe;padding:14px;border-radius:14px}
+    .steps li{margin-bottom:10px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    .diff{padding:12px;border-radius:12px;border:1px solid var(--line);background:#fff}
+    .changed-text{color:var(--bad);font-weight:700}
+    .ok-text{color:var(--good);font-weight:700}
+    @media (max-width: 1100px){.g3,.g2,.cols{grid-template-columns:1fr}.disk-grid{grid-template-columns:repeat(4,minmax(70px,1fr))}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>File System & Digital Forensics Case Visualizer</h1>
+      <p class="muted">A self-contained teaching document that shows how an operating system sees a disk, how a file system stores metadata and data blocks, how hashes change, and how an examiner compares a normal disk with a suspect disk.</p>
+      <div class="grid g3" style="margin-top:16px">
+        <div class="kpi"><div class="small muted">Selected case study</div><div id="caseTitle" style="font-size:24px;font-weight:800">Case 1 — Normal vs Deleted File</div></div>
+        <div class="kpi"><div class="small muted">Evidence method</div><div style="font-size:20px;font-weight:800">Bit-for-bit image + hash comparison</div></div>
+        <div class="kpi"><div class="small muted">Comparison status</div><div id="overallStatus" style="font-size:20px;font-weight:800">Differences detected</div></div>
+      </div>
+      <div class="btns" style="margin-top:14px">
+        <button class="primary" onclick="loadCase('case1')">Case 1: Deletion</button>
+        <button onclick="loadCase('case2')">Case 2: Tampering</button>
+        <button onclick="loadCase('case3')">Case 3: Overwrite / New File</button>
+      </div>
+    </div>
+
+    <div class="section grid g2">
+      <div class="card">
+        <h2>What is happening in this case?</h2>
+        <div id="storyBox" class="story"></div>
+      </div>
+      <div class="card">
+        <h2>How an examiner knows something changed</h2>
+        <ul class="steps">
+          <li>The original disk is not examined directly. A <strong>forensic image</strong> is created.</li>
+          <li>The image gets a <strong>cryptographic hash</strong>. If one bit changes, the hash changes.</li>
+          <li>The examiner compares <strong>file-system metadata</strong>, <strong>directory entries</strong>, <strong>timestamps</strong>, and <strong>raw blocks</strong>.</li>
+          <li>If a file is deleted, the <strong>directory or metadata entry changes</strong>, but the data blocks may remain until overwritten.</li>
+          <li>If a file is modified, both the <strong>content hash</strong> and often the <strong>modified timestamp</strong> change.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="section cols">
+      <div class="card">
+        <h2>Disk A — Known Good / Earlier State</h2>
+        <p class="muted small">Click a block to inspect the simplified raw data and the file-system meaning.</p>
+        <div id="diskA" class="disk-grid"></div>
+        <div class="legend">
+          <span class="pill"><span class="dot" style="background:var(--boot)"></span>Boot</span>
+          <span class="pill"><span class="dot" style="background:var(--meta)"></span>Metadata</span>
+          <span class="pill"><span class="dot" style="background:var(--journal)"></span>Journal</span>
+          <span class="pill"><span class="dot" style="background:var(--data)"></span>Active data</span>
+          <span class="pill"><span class="dot" style="background:var(--deleted)"></span>Deleted / flagged</span>
+          <span class="pill"><span class="dot" style="background:var(--free)"></span>Free</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Disk B — Suspect / Later State</h2>
+        <p class="muted small">Use this side-by-side view to see what changed at the block level.</p>
+        <div id="diskB" class="disk-grid"></div>
+        <div class="legend">
+          <span class="pill"><span class="dot" style="background:var(--boot)"></span>Boot</span>
+          <span class="pill"><span class="dot" style="background:var(--meta)"></span>Metadata</span>
+          <span class="pill"><span class="dot" style="background:var(--journal)"></span>Journal</span>
+          <span class="pill"><span class="dot" style="background:var(--data)"></span>Active data</span>
+          <span class="pill"><span class="dot" style="background:var(--deleted)"></span>Deleted / flagged</span>
+          <span class="pill"><span class="dot" style="background:var(--free)"></span>Free</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section cols">
+      <div class="card inspector">
+        <h2>Inspector — Disk A block</h2>
+        <div id="inspectA"></div>
+      </div>
+      <div class="card inspector">
+        <h2>Inspector — Disk B block</h2>
+        <div id="inspectB"></div>
+      </div>
+    </div>
+
+    <div class="section cols">
+      <div class="card">
+        <h2>File-system metadata table — Disk A</h2>
+        <p class="muted small">This is a simplified NTFS-style idea similar to a Master File Table entry list. The hash shown here is a simulated file-content hash so you can see what changes.</p>
+        <div id="tableA"></div>
+      </div>
+      <div class="card">
+        <h2>File-system metadata table — Disk B</h2>
+        <p class="muted small">If a file is deleted or altered, the status, timestamps, hashes, or block allocation may differ here.</p>
+        <div id="tableB"></div>
+      </div>
+    </div>
+
+    <div class="section card">
+      <h2>Forensic comparison — what changed?</h2>
+      <div id="comparison"></div>
+    </div>
+
+    <div class="section cols">
+      <div class="card">
+        <h2>From operating system to stored file</h2>
+        <ol class="steps">
+          <li>The computer powers on and the operating system loads from the internal storage device.</li>
+          <li>The OS uses a storage driver to talk to the disk controller.</li>
+          <li>The OS reads the <strong>partition table</strong> such as MBR or GPT.</li>
+          <li>It finds the partition and recognizes the <strong>file system type</strong> such as NTFS or FAT32.</li>
+          <li>It reads file-system structures such as directory indexes or metadata tables.</li>
+          <li>When you create a file, the system creates a <strong>metadata entry</strong>, writes the content to free blocks, and records which blocks belong to the file.</li>
+          <li>When you open a file later, the OS does not search randomly. It consults the metadata entry and follows the block pointers.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h2>Why this matters in digital forensics</h2>
+        <ul class="steps">
+          <li><strong>Deletion</strong> often removes the logical reference before it destroys the underlying content.</li>
+          <li><strong>Tampering</strong> changes content bytes and therefore changes the hash.</li>
+          <li><strong>Timeline analysis</strong> relies on created, modified, and accessed timestamps.</li>
+          <li><strong>Block allocation analysis</strong> shows where data lived and whether it was overwritten.</li>
+          <li><strong>Hashing</strong> confirms whether two files, partitions, or forensic images are identical.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+<script>
+const DISK_SIZE = 32;
+
+function hashText(text){
+  let h = 2166136261 >>> 0;
+  for(let i=0;i<text.length;i++){
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8,'0');
+}
+
+function baseFiles(){
+  return [
+    {id:'kernel',name:'kernel.sys',path:'/Windows/System32/kernel.sys',blocks:[6,7,8,9],content:'Operating system kernel data',created:'2026-04-13 09:00:00',modified:'2026-04-13 09:00:00',accessed:'2026-04-13 09:00:00',owner:'SYSTEM',status:'active',note:'Core system file.'},
+    {id:'notes',name:'notes.txt',path:'/Users/Ali/Documents/notes.txt',blocks:[12,13],content:'Investigation notes about user activity',created:'2026-04-13 10:00:00',modified:'2026-04-13 10:20:00',accessed:'2026-04-13 10:20:00',owner:'Ali',status:'active',note:'User-created text document.'},
+    {id:'photo',name:'photo.jpg',path:'/Users/Ali/Pictures/photo.jpg',blocks:[18,19,20],content:'JPEG binary data',created:'2026-04-13 10:30:00',modified:'2026-04-13 10:30:00',accessed:'2026-04-13 10:30:00',owner:'Ali',status:'active',note:'Image stored in multiple blocks.'}
+  ];
+}
+
+function makeDisk(files){
+  const disk = Array.from({length:DISK_SIZE}, (_,i)=>({block:i,type:'free',label:'Free',fileId:null,path:'',raw:'00 00 00 00'}));
+  disk[0]={block:0,type:'boot',label:'Boot Sector',raw:'EB 52 90 NTFS',fileId:null,path:''};
+  disk[1]={block:1,type:'meta',label:'Partition Table',raw:'MBR/GPT INFO',fileId:null,path:''};
+  disk[2]={block:2,type:'meta',label:'File System Metadata',raw:'$MFT HEADER',fileId:null,path:''};
+  disk[3]={block:3,type:'meta',label:'Directory Index',raw:'DIR INDEX',fileId:null,path:''};
+  disk[4]={block:4,type:'meta',label:'Allocation Bitmap',raw:'BITMAP 101011',fileId:null,path:''};
+  disk[5]={block:5,type:'journal',label:'Journal / Log',raw:'LOG RECORDS',fileId:null,path:''};
+  files.forEach(f=>{
+    f.blocks.forEach((b,idx)=>{
+      disk[b]={
+        block:b,
+        type:f.status==='deleted' ? 'deleted':'data',
+        label:f.status==='deleted' ? f.name+' (deleted)' : f.name,
+        fileId:f.id,
+        path:f.path,
+        raw:(f.content.slice(0,14)+' '+(idx+1)+'/'+f.blocks.length)
+      };
+    });
+  });
+  return disk;
+}
+
+function fileRows(files){
+  return files.map((f,idx)=>({
+    rec: idx+1,
+    id: f.id,
+    name: f.name,
+    path: f.path,
+    blocks: f.blocks.join(', '),
+    created: f.created,
+    modified: f.modified,
+    accessed: f.accessed,
+    owner: f.owner,
+    status: f.status,
+    hash: hashText(f.content),
+    note: f.note
+  }));
+}
+
+const cases = {
+  case1: {
+    title: 'Case 1 — Normal vs Deleted File',
+    story: '<strong>Scenario:</strong> A user had a normal disk with a text file called <span class="mono">notes.txt</span>. Later, the suspect deleted the file. In many file systems, deletion first changes the metadata entry and directory visibility. The content blocks may still be present until they are overwritten. An examiner creates a forensic image of both states, compares hashes, checks metadata status, and observes that the blocks still contain remnants of the deleted file.',
+    build(){
+      const A = baseFiles();
+      const B = baseFiles().map(f=>f.id==='notes' ? {...f,status:'deleted',accessed:'2026-04-13 11:00:00',modified:'2026-04-13 10:20:00',note:'Deleted logically. Data may still remain in underlying blocks.'} : f);
+      return {A,B};
+    }
+  },
+  case2: {
+    title: 'Case 2 — File Tampering / Content Modified',
+    story: '<strong>Scenario:</strong> A photo file looked normal on the first image. On the second image, the content was changed. The filename and path may look the same, but the content hash and modified timestamp differ. This is how investigators detect tampering even when the user keeps the same filename.',
+    build(){
+      const A = baseFiles();
+      const B = baseFiles().map(f=>f.id==='photo' ? {...f,content:'JPEG binary data [tampered]',modified:'2026-04-13 12:00:00',accessed:'2026-04-13 12:00:00',note:'Content changed, so hash changed.'} : f);
+      return {A,B};
+    }
+  },
+  case3: {
+    title: 'Case 3 — Deletion Followed by Overwrite',
+    story: '<strong>Scenario:</strong> The suspect deleted <span class="mono">notes.txt</span> and later created a new file that reused some of the same blocks. This is important in forensics because once data is overwritten, full recovery becomes harder or impossible. Comparing both disk images shows that the original blocks no longer contain the old content.',
+    build(){
+      const A = baseFiles();
+      const B = [
+        {...baseFiles()[0]},
+        {...baseFiles()[2]},
+        {id:'report',name:'report.txt',path:'/Users/Ali/Documents/report.txt',blocks:[12,13],content:'New report replacing old content',created:'2026-04-13 13:00:00',modified:'2026-04-13 13:00:00',accessed:'2026-04-13 13:00:00',owner:'Ali',status:'active',note:'New file written into blocks once used by notes.txt.'}
+      ];
+      return {A,B};
+    }
+  }
+};
+
+let currentCase = 'case1';
+let selectedA = 12;
+let selectedB = 12;
+
+function renderBlockGrid(targetId, disk, selected, which){
+  const el = document.getElementById(targetId);
+  el.innerHTML = '';
+  disk.forEach(block=>{
+    const div = document.createElement('div');
+    div.className = `block ${block.type} ${selected===block.block ? 'active':''}`;
+    div.innerHTML = `<div class="small muted">Block</div><div style="font-weight:800">${block.block}</div><div class="small">${block.label}</div>`;
+    div.onclick = ()=>{
+      if(which==='A') selectedA = block.block; else selectedB = block.block;
+      renderAll();
+    };
+    el.appendChild(div);
+  });
+}
+
+function inspectHTML(block){
+  if(!block) return '';
+  return `
+    <div class="diff"><div class="small muted">Type</div><div><strong>${block.type}</strong></div></div>
+    <div class="diff"><div class="small muted">Meaning</div><div>${block.label}</div></div>
+    <div class="diff"><div class="small muted">Path</div><div>${block.path || 'Not a user-file block'}</div></div>
+    <div class="diff"><div class="small muted">Raw view</div><pre>${block.raw}</pre></div>
+  `;
+}
+
+function tableHTML(rows){
+  let html = '<table><thead><tr><th>Rec</th><th>Name</th><th>Path</th><th>Blocks</th><th>Created</th><th>Modified</th><th>Accessed</th><th>Status</th><th>Hash</th></tr></thead><tbody>';
+  rows.forEach(r=>{
+    const cls = r.status==='deleted' ? 'deleted-row' : '';
+    html += `<tr class="${cls}"><td>${r.rec}</td><td>${r.name}</td><td>${r.path}</td><td>${r.blocks}</td><td>${r.created}</td><td>${r.modified}</td><td>${r.accessed}</td><td><span class="badge ${r.status==='deleted'?'b-bad':'b-good'}">${r.status}</span></td><td class="mono">${r.hash}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function compareFiles(rowsA, rowsB){
+  const mapA = Object.fromEntries(rowsA.map(r=>[r.id,r]));
+  const mapB = Object.fromEntries(rowsB.map(r=>[r.id,r]));
+  const ids = [...new Set([...Object.keys(mapA), ...Object.keys(mapB)])];
+  let changedCount = 0;
+  let blockDiffs = 0;
+  let html = '<table><thead><tr><th>File</th><th>Disk A</th><th>Disk B</th><th>What changed?</th></tr></thead><tbody>';
+  ids.forEach(id=>{
+    const a = mapA[id], b = mapB[id];
+    let summary = [];
+    let cls='same';
+    if(!a && b){summary.push('File added on Disk B'); cls='changed'; changedCount++;}
+    else if(a && !b){summary.push('File missing on Disk B'); cls='changed'; changedCount++;}
+    else {
+      if(a.hash !== b.hash){summary.push('Content hash changed'); changedCount++; cls='changed';}
+      if(a.status !== b.status){summary.push(`Status changed: ${a.status} → ${b.status}`); changedCount++; cls='changed';}
+      if(a.modified !== b.modified){summary.push('Modified timestamp changed'); changedCount++; cls='changed';}
+      if(a.blocks !== b.blocks){summary.push(`Block allocation changed: ${a.blocks} → ${b.blocks}`); changedCount++; cls='changed'; blockDiffs++;}
+      if(summary.length===0) summary.push('No meaningful change');
+    }
+    html += `<tr class="${cls}">
+      <td><strong>${(a||b).name}</strong><br><span class="small muted">${(a||b).path}</span></td>
+      <td>${a ? `<div>Status: <span class="badge ${a.status==='deleted'?'b-bad':'b-good'}">${a.status}</span></div><div class="mono small">Hash: ${a.hash}</div><div class="small">Blocks: ${a.blocks}</div>` : '<span class="badge b-warn">Not present</span>'}</td>
+      <td>${b ? `<div>Status: <span class="badge ${b.status==='deleted'?'b-bad':'b-good'}">${b.status}</span></div><div class="mono small">Hash: ${b.hash}</div><div class="small">Blocks: ${b.blocks}</div>` : '<span class="badge b-warn">Not present</span>'}</td>
+      <td>${summary.join('<br>')}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  return {html,changedCount,blockDiffs};
+}
+
+function compareDisks(diskA, diskB){
+  let diffs = [];
+  for(let i=0;i<diskA.length;i++){
+    const a=diskA[i], b=diskB[i];
+    if(a.type!==b.type || a.label!==b.label || a.raw!==b.raw){
+      diffs.push(`Block ${i}: ${a.label} → ${b.label}`);
+    }
+  }
+  return diffs;
+}
+
+function loadCase(key){
+  currentCase = key;
+  selectedA = 12;
+  selectedB = 12;
+  renderAll();
+}
+
+function renderAll(){
+  const pack = cases[currentCase].build();
+  const rowsA = fileRows(pack.A);
+  const rowsB = fileRows(pack.B);
+  const diskA = makeDisk(pack.A);
+  const diskB = makeDisk(pack.B);
+
+  document.getElementById('caseTitle').textContent = cases[currentCase].title;
+  document.getElementById('storyBox').innerHTML = cases[currentCase].story;
+
+  renderBlockGrid('diskA', diskA, selectedA, 'A');
+  renderBlockGrid('diskB', diskB, selectedB, 'B');
+  document.getElementById('inspectA').innerHTML = inspectHTML(diskA[selectedA]);
+  document.getElementById('inspectB').innerHTML = inspectHTML(diskB[selectedB]);
+  document.getElementById('tableA').innerHTML = tableHTML(rowsA);
+  document.getElementById('tableB').innerHTML = tableHTML(rowsB);
+
+  const cmp = compareFiles(rowsA, rowsB);
+  const blockDiffs = compareDisks(diskA, diskB);
+
+  let summary = `<div class="grid g2">
+    <div class="diff"><div class="small muted">File-level differences</div><div style="font-size:28px;font-weight:800">${cmp.changedCount}</div></div>
+    <div class="diff"><div class="small muted">Block-level differences</div><div style="font-size:28px;font-weight:800">${blockDiffs.length}</div></div>
+  </div>`;
+  summary += '<div style="height:14px"></div>' + cmp.html;
+  summary += '<div style="height:14px"></div><div class="diff"><h3>Changed blocks</h3>';
+  if(blockDiffs.length===0){summary += '<div class="ok-text">No block differences found.</div>'}
+  else {summary += '<ul>' + blockDiffs.map(d=>`<li>${d}</li>`).join('') + '</ul>'}
+  summary += '</div>';
+  summary += '<div style="height:14px"></div><div class="diff"><h3>How to interpret this</h3><p>When the <strong>hash changes</strong>, the file content changed. When the <strong>status changes to deleted</strong>, the file-system entry changed, even if the underlying blocks still show remnants. When the <strong>block allocation changes</strong>, the file either moved or was overwritten by new content.</p></div>';
+
+  document.getElementById('comparison').innerHTML = summary;
+  document.getElementById('overallStatus').textContent = cmp.changedCount>0 || blockDiffs.length>0 ? 'Differences detected' : 'No differences detected';
+}
+
+renderAll();
+</script>
+</body>
+</html>
